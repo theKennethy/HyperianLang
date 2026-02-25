@@ -43,6 +43,11 @@ const _ES_KEYWORDS = new Set([
   'cluster', 'fork', 'master', 'primary', 'workers', 'label', 'labeled', 'shared', 'atomics',
   // Keys iteration
   'keys',
+  // HTML generation
+  'html', 'head', 'body', 'div', 'span', 'section', 'article', 'header', 'footer', 'nav', 'main', 'aside',
+  'heading', 'paragraph', 'link', 'image', 'button', 'input', 'form', 'label', 'textarea', 'select', 'option',
+  'table', 'row', 'cell', 'thead', 'tbody', 'list', 'item', 'script', 'style', 'meta', 'title',
+  'ordered', 'unordered', 'stylesheet', 'charset', 'viewport', 'template',
 ]);
 
 const _ES_ACTIONS = new Set([
@@ -130,6 +135,8 @@ const _ES_ACTIONS = new Set([
   'cluster', 'fork', 'label', 'labeled', 'atomic', 'sharedbuffer',
   // Keys iteration
   'keys', 'iterate',
+  // HTML generation
+  'html', 'element', 'attribute', 'content', 'render',
 ]);
 
 const _ES_PREPS = new Set([
@@ -452,6 +459,8 @@ class HLParser {
       // New features
       'atomic', 'cluster', 'shared', 'iterate', 'keys', 'lookup', 'worker',
       'compress', 'decompress', 'assert', 'secure', 'pipe', 'stream',
+      // HTML generation
+      'html', 'render',
     ]);
     // Statement-starting keywords that should not be consumed as part of variable names
     const STMT_KEYWORDS = new Set([
@@ -779,6 +788,8 @@ class HLParser {
         // New features
         'atomic', 'cluster', 'shared', 'iterate', 'keys', 'lookup', 'worker',
         'compress', 'decompress', 'assert', 'secure', 'pipe', 'stream',
+        // HTML generation
+        'html', 'render',
       ]);
       const SKIP_ARTICLES = new Set(['the', 'a', 'an', 'this', 'that']);
       const words = [];
@@ -1407,6 +1418,9 @@ class HLParser {
       // Keys iteration: iterate keys of obj into key
       case 'iterate':   return this._parseIterateKeys();
       case 'keys':      return this._parseKeysOf();
+      // HTML generation
+      case 'html':      return this._parseHtml();
+      case 'render':    return this._parseRender();
       default: this._next(); return null;
     }
   }
@@ -5430,6 +5444,374 @@ class HLParser {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // HTML GENERATION — English-like syntax for creating HTML
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /*
+   * Supported syntax:
+   *   html document into page ... end html
+   *   html div with class "x" and id "y" into elem
+   *   html heading 1 "Title" into h1
+   *   html paragraph "text" into p
+   *   html link to "url" with text "label" into a
+   *   html image from "src" with alt "text" into img
+   *   html button "label" with type "submit" into btn
+   *   html input with type "text" and name "field" into inp
+   *   html list ordered ... end list
+   *   html list unordered ... end list
+   *   html item "text"
+   *   html form with action "/submit" and method "POST" ... end form
+   *   html table ... end table
+   *   html row ... end row
+   *   html cell "content"
+   *   append child to parent
+   *   get html from element into string
+   *   render page into htmlString
+   */
+  _parseHtml() {
+    this._consume('html');
+    const tok = this._peek();
+    if (!tok) throw new Error('HLParser: Expected HTML element type after "html"');
+    
+    // html document into page ... end html
+    if (tok.value === 'document' || tok.value === 'page') {
+      this._next();
+      let out = null;
+      if (this._is('into') || this._is('called')) {
+        this._next();
+        out = this._consumeIdent();
+      }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) {
+        this._next();
+        if (this._is('html') || this._is('document')) this._next();
+      }
+      return { type: 'htmlDocument', out, body };
+    }
+    
+    // html head ... end head
+    if (tok.value === 'head') {
+      this._next();
+      const body = this._parseBody(['end']);
+      if (this._is('end')) {
+        this._next();
+        if (this._is('head')) this._next();
+      }
+      return { type: 'htmlHead', body };
+    }
+    
+    // html body ... end body
+    if (tok.value === 'body') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      const body = this._parseBody(['end']);
+      if (this._is('end')) {
+        this._next();
+        if (this._is('body')) this._next();
+      }
+      return { type: 'htmlBody', attrs, body };
+    }
+    
+    // html title "text"
+    if (tok.value === 'title') {
+      this._next();
+      const text = this._parseValue();
+      return { type: 'htmlTitle', text };
+    }
+    
+    // html meta charset "utf-8" / html meta viewport "width=device-width"
+    if (tok.value === 'meta') {
+      this._next();
+      const attrs = {};
+      if (this._is('charset')) { this._next(); attrs.charset = this._parseValue(); }
+      else if (this._is('viewport')) { this._next(); attrs.name = { type: 'string', value: 'viewport' }; attrs.content = this._parseValue(); }
+      else { Object.assign(attrs, this._parseHtmlAttrs()); }
+      return { type: 'htmlMeta', attrs };
+    }
+    
+    // html style "css code" / html style file "styles.css"
+    if (tok.value === 'style') {
+      this._next();
+      if (this._is('file')) {
+        this._next();
+        return { type: 'htmlStyleLink', href: this._parseValue() };
+      }
+      return { type: 'htmlStyle', content: this._parseValue() };
+    }
+    
+    // html link stylesheet "styles.css" / html link to "url" with text "label"
+    if (tok.value === 'link') {
+      this._next();
+      if (this._is('stylesheet')) {
+        this._next();
+        return { type: 'htmlStyleLink', href: this._parseValue() };
+      }
+      // Regular link (anchor)
+      let href = null, text = null;
+      if (this._is('to')) { this._next(); href = this._parseValue(); }
+      const attrs = this._parseHtmlAttrs();
+      if (this._is('with') && this._peek(1)?.value === 'text') {
+        this._next(); this._next();
+        text = this._parseValue();
+      } else if (attrs.text) {
+        text = attrs.text;
+        delete attrs.text;
+      }
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlLink', href, text, attrs, out };
+    }
+    
+    // html script "code" / html script file "script.js"
+    if (tok.value === 'script') {
+      this._next();
+      if (this._is('file') || this._is('from')) {
+        this._next();
+        return { type: 'htmlScriptSrc', src: this._parseValue() };
+      }
+      return { type: 'htmlScript', content: this._parseValue() };
+    }
+    
+    // html heading 1 "Title" with class "x" into h
+    if (tok.value === 'heading' || tok.value === 'h1' || tok.value === 'h2' || tok.value === 'h3' || tok.value === 'h4' || tok.value === 'h5' || tok.value === 'h6') {
+      this._next();
+      let level = 1;
+      if (this._peek()?.type === 'NUMBER') level = parseInt(this._next().value, 10);
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlHeading', level, text, attrs, out };
+    }
+    
+    // html paragraph "text" with class "x" into p
+    if (tok.value === 'paragraph' || tok.value === 'p' || tok.value === 'text') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlParagraph', text, attrs, out };
+    }
+    
+    // html span "content" with class "x" into s
+    if (tok.value === 'span') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlSpan', text, attrs, out };
+    }
+    
+    // html image from "src" with alt "text" and class "x" into img
+    if (tok.value === 'image' || tok.value === 'img') {
+      this._next();
+      let src = null;
+      if (this._is('from') || this._is('source')) { this._next(); src = this._parseValue(); }
+      else { src = this._parseValue(); }
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlImage', src, attrs, out };
+    }
+    
+    // html button "label" with type "submit" and class "btn" into btn
+    if (tok.value === 'button' || tok.value === 'btn') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlButton', text, attrs, out };
+    }
+    
+    // html input with type "text" and name "field" and placeholder "Enter..." into inp
+    if (tok.value === 'input') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlInput', attrs, out };
+    }
+    
+    // html textarea with name "content" and rows 5 into ta
+    if (tok.value === 'textarea') {
+      this._next();
+      let content = null;
+      if (this._peek()?.type === 'STRING') content = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlTextarea', content, attrs, out };
+    }
+    
+    // html select with name "choice" ... end select
+    if (tok.value === 'select') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('select')) this._next(); }
+      return { type: 'htmlSelect', attrs, body, out };
+    }
+    
+    // html option "text" with value "val"
+    if (tok.value === 'option') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      return { type: 'htmlOption', text, attrs };
+    }
+    
+    // html form with action "/submit" and method "POST" ... end form
+    if (tok.value === 'form') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('form')) this._next(); }
+      return { type: 'htmlForm', attrs, body, out };
+    }
+    
+    // html label "text" with for "fieldId"
+    if (tok.value === 'label') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      return { type: 'htmlLabel', text, attrs };
+    }
+    
+    // html list ordered ... end list / html list unordered ... end list
+    if (tok.value === 'list') {
+      this._next();
+      let ordered = false;
+      if (this._is('ordered')) { this._next(); ordered = true; }
+      else if (this._is('unordered')) { this._next(); ordered = false; }
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('list')) this._next(); }
+      return { type: 'htmlList', ordered, attrs, body, out };
+    }
+    
+    // html item "text"
+    if (tok.value === 'item') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      return { type: 'htmlItem', text, attrs };
+    }
+    
+    // html table with class "table" ... end table
+    if (tok.value === 'table') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('table')) this._next(); }
+      return { type: 'htmlTable', attrs, body, out };
+    }
+    
+    // html row ... end row
+    if (tok.value === 'row' || tok.value === 'tr') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('row') || this._is('tr')) this._next(); }
+      return { type: 'htmlRow', attrs, body };
+    }
+    
+    // html cell "content" with colspan 2
+    if (tok.value === 'cell' || tok.value === 'td' || tok.value === 'th') {
+      this._next();
+      const isHeader = tok.value === 'th';
+      let text = null;
+      if (this._peek()?.type === 'STRING' || this._peek()?.type === 'NUMBER' || this._peek()?.type === 'IDENT') {
+        text = this._parseValue();
+      }
+      const attrs = this._parseHtmlAttrs();
+      return { type: 'htmlCell', text, attrs, isHeader };
+    }
+    
+    // html div with class "container" and id "main" into elem ... (inline or block)
+    // html section / html article / html header / html footer / html nav / html main / html aside
+    const containerTags = ['div', 'section', 'article', 'header', 'footer', 'nav', 'main', 'aside'];
+    if (containerTags.includes(tok.value)) {
+      const tag = tok.value;
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      // Check if it has a body (block mode)
+      let body = null;
+      if (this._is('do') || this._is('then') || this._peek()?.value === 'html' || this._peek()?.type === 'NEWLINE') {
+        if (this._is('do') || this._is('then')) this._next();
+        body = this._parseBody(['end']);
+        if (this._is('end')) { this._next(); if (this._is(tag)) this._next(); }
+      }
+      return { type: 'htmlContainer', tag, attrs, body, out };
+    }
+    
+    throw new Error(`HLParser: Unknown HTML element "${tok.value}"`);
+  }
+  
+  // Parse HTML attributes: with class "x" and id "y" ...
+  _parseHtmlAttrs() {
+    const attrs = {};
+    while (this._is('with') || this._is('and')) {
+      this._next();
+      // Handle common patterns
+      if (this._is('class')) { this._next(); attrs.class = this._parseValue(); continue; }
+      if (this._is('id')) { this._next(); attrs.id = this._parseValue(); continue; }
+      if (this._is('style')) { this._next(); attrs.style = this._parseValue(); continue; }
+      if (this._is('type')) { this._next(); attrs.type = this._parseValue(); continue; }
+      if (this._is('name')) { this._next(); attrs.name = this._parseValue(); continue; }
+      if (this._is('value')) { this._next(); attrs.value = this._parseValue(); continue; }
+      if (this._is('placeholder')) { this._next(); attrs.placeholder = this._parseValue(); continue; }
+      if (this._is('href')) { this._next(); attrs.href = this._parseValue(); continue; }
+      if (this._is('src')) { this._next(); attrs.src = this._parseValue(); continue; }
+      if (this._is('alt')) { this._next(); attrs.alt = this._parseValue(); continue; }
+      if (this._is('text')) { this._next(); attrs.text = this._parseValue(); continue; }
+      if (this._is('action')) { this._next(); attrs.action = this._parseValue(); continue; }
+      if (this._is('method')) { this._next(); attrs.method = this._parseValue(); continue; }
+      if (this._is('target')) { this._next(); attrs.target = this._parseValue(); continue; }
+      if (this._is('for')) { this._next(); attrs.for = this._parseValue(); continue; }
+      if (this._is('rows')) { this._next(); attrs.rows = this._parseValue(); continue; }
+      if (this._is('cols')) { this._next(); attrs.cols = this._parseValue(); continue; }
+      if (this._is('colspan')) { this._next(); attrs.colspan = this._parseValue(); continue; }
+      if (this._is('rowspan')) { this._next(); attrs.rowspan = this._parseValue(); continue; }
+      if (this._is('disabled')) { this._next(); attrs.disabled = { type: 'boolean', value: true }; continue; }
+      if (this._is('required')) { this._next(); attrs.required = { type: 'boolean', value: true }; continue; }
+      if (this._is('checked')) { this._next(); attrs.checked = { type: 'boolean', value: true }; continue; }
+      if (this._is('selected')) { this._next(); attrs.selected = { type: 'boolean', value: true }; continue; }
+      if (this._is('readonly')) { this._next(); attrs.readonly = { type: 'boolean', value: true }; continue; }
+      if (this._is('autofocus')) { this._next(); attrs.autofocus = { type: 'boolean', value: true }; continue; }
+      // Generic attribute: "attr value"
+      const attrName = this._consumeIdent();
+      const attrVal = this._parseValue();
+      attrs[attrName] = attrVal;
+    }
+    return attrs;
+  }
+  
+  // Render: "render page into htmlString"
+  _parseRender() {
+    this._consume('render');
+    const source = this._consumeIdent();
+    let out = null;
+    if (this._is('into') || this._is('called') || this._is('to')) {
+      this._next();
+      out = this._consumeIdent();
+    }
+    return { type: 'render', source, out };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // ENGLISH-READABLE PARSERS
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -9150,7 +9532,400 @@ class HLInterpreter {
         }
         break;
       }
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // HTML GENERATION EXECUTION
+      // ═══════════════════════════════════════════════════════════════════════
+      
+      case 'htmlDocument': {
+        if (!w) break;
+        // Initialize HTML context with document structure
+        w._htmlStack = w._htmlStack || [];
+        w._htmlContext = {
+          doctype: '<!DOCTYPE html>',
+          head: [],
+          body: []
+        };
+        // Execute body to populate head and body
+        await this._executeBody(stmt.body);
+        // Build final HTML
+        let html = w._htmlContext.doctype + '\n<html>\n';
+        if (w._htmlContext.head.length) {
+          html += '<head>\n' + w._htmlContext.head.join('\n') + '\n</head>\n';
+        }
+        html += '<body>\n' + w._htmlContext.body.join('\n') + '\n</body>\n</html>';
+        if (stmt.out) w._vars[stmt.out] = html;
+        else w._vars['_htmlOutput'] = html;
+        break;
+      }
+      
+      case 'htmlHead': {
+        if (!w) break;
+        w._htmlStack = w._htmlStack || [];
+        w._htmlStack.push('head');
+        await this._executeBody(stmt.body);
+        w._htmlStack.pop();
+        break;
+      }
+      
+      case 'htmlBody': {
+        if (!w) break;
+        w._htmlStack = w._htmlStack || [];
+        w._htmlStack.push('body');
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        // Body attributes are applied when rendering
+        await this._executeBody(stmt.body);
+        w._htmlStack.pop();
+        break;
+      }
+      
+      case 'htmlTitle': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const html = `<title>${this._escapeHtml(text)}</title>`;
+        this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlMeta': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<meta${this._renderAttrs(attrs)}>`;
+        this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlStyle': {
+        if (!w) break;
+        const content = this._resolveValue(stmt.content);
+        const html = `<style>\n${content}\n</style>`;
+        this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlStyleLink': {
+        if (!w) break;
+        const href = this._resolveValue(stmt.href);
+        const html = `<link rel="stylesheet" href="${this._escapeHtml(href)}">`;
+        this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlScript': {
+        if (!w) break;
+        const content = this._resolveValue(stmt.content);
+        const html = `<script>\n${content}\n</script>`;
+        this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlScriptSrc': {
+        if (!w) break;
+        const src = this._resolveValue(stmt.src);
+        const html = `<script src="${this._escapeHtml(src)}"></script>`;
+        this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlHeading': {
+        if (!w) break;
+        const level = stmt.level || 1;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<h${level}${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</h${level}>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlParagraph': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<p${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</p>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlSpan': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<span${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</span>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlLink': {
+        if (!w) break;
+        const href = stmt.href ? this._resolveValue(stmt.href) : '#';
+        const text = stmt.text ? this._resolveValue(stmt.text) : href;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        attrs.href = href;
+        const html = `<a${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</a>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlImage': {
+        if (!w) break;
+        const src = this._resolveValue(stmt.src);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        attrs.src = src;
+        if (!attrs.alt) attrs.alt = '';
+        const html = `<img${this._renderAttrs(attrs)}>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlButton': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<button${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</button>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlInput': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        if (!attrs.type) attrs.type = 'text';
+        const html = `<input${this._renderAttrs(attrs)}>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlTextarea': {
+        if (!w) break;
+        const content = stmt.content ? this._resolveValue(stmt.content) : '';
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<textarea${this._renderAttrs(attrs)}>${this._escapeHtml(content)}</textarea>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlSelect': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        w._htmlStack = w._htmlStack || [];
+        const savedContent = [];
+        w._htmlSelectContent = savedContent;
+        await this._executeBody(stmt.body);
+        const optionsHtml = savedContent.join('\n');
+        delete w._htmlSelectContent;
+        const html = `<select${this._renderAttrs(attrs)}>\n${optionsHtml}\n</select>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlOption': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<option${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</option>`;
+        if (w._htmlSelectContent) {
+          w._htmlSelectContent.push(html);
+        } else {
+          this._appendHtml(w, html);
+        }
+        break;
+      }
+      
+      case 'htmlForm': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        w._htmlStack = w._htmlStack || [];
+        const savedContent = [];
+        w._htmlFormContent = savedContent;
+        await this._executeBody(stmt.body);
+        const formContent = savedContent.join('\n');
+        delete w._htmlFormContent;
+        const html = `<form${this._renderAttrs(attrs)}>\n${formContent}\n</form>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlLabel': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<label${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</label>`;
+        if (w._htmlFormContent) {
+          w._htmlFormContent.push(html);
+        } else {
+          this._appendHtml(w, html);
+        }
+        break;
+      }
+      
+      case 'htmlList': {
+        if (!w) break;
+        const tag = stmt.ordered ? 'ol' : 'ul';
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        w._htmlStack = w._htmlStack || [];
+        const savedContent = [];
+        w._htmlListContent = savedContent;
+        await this._executeBody(stmt.body);
+        const itemsHtml = savedContent.join('\n');
+        delete w._htmlListContent;
+        const html = `<${tag}${this._renderAttrs(attrs)}>\n${itemsHtml}\n</${tag}>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlItem': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<li${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</li>`;
+        if (w._htmlListContent) {
+          w._htmlListContent.push(html);
+        } else {
+          this._appendHtml(w, html);
+        }
+        break;
+      }
+      
+      case 'htmlTable': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        w._htmlStack = w._htmlStack || [];
+        const savedContent = [];
+        w._htmlTableContent = savedContent;
+        await this._executeBody(stmt.body);
+        const tableContent = savedContent.join('\n');
+        delete w._htmlTableContent;
+        const html = `<table${this._renderAttrs(attrs)}>\n${tableContent}\n</table>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlRow': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const savedContent = [];
+        w._htmlRowContent = savedContent;
+        await this._executeBody(stmt.body);
+        const rowContent = savedContent.join('\n');
+        delete w._htmlRowContent;
+        const html = `<tr${this._renderAttrs(attrs)}>\n${rowContent}\n</tr>`;
+        if (w._htmlTableContent) {
+          w._htmlTableContent.push(html);
+        } else {
+          this._appendHtml(w, html);
+        }
+        break;
+      }
+      
+      case 'htmlCell': {
+        if (!w) break;
+        const tag = stmt.isHeader ? 'th' : 'td';
+        const text = stmt.text ? this._resolveValue(stmt.text) : '';
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<${tag}${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</${tag}>`;
+        if (w._htmlRowContent) {
+          w._htmlRowContent.push(html);
+        } else {
+          this._appendHtml(w, html);
+        }
+        break;
+      }
+      
+      case 'htmlContainer': {
+        if (!w) break;
+        const tag = stmt.tag;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        let content = '';
+        if (stmt.body) {
+          const savedContent = [];
+          w._htmlContainerContent = savedContent;
+          await this._executeBody(stmt.body);
+          content = savedContent.join('\n');
+          delete w._htmlContainerContent;
+        }
+        const html = content ? `<${tag}${this._renderAttrs(attrs)}>\n${content}\n</${tag}>` : `<${tag}${this._renderAttrs(attrs)}></${tag}>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'render': {
+        if (!w) break;
+        // Get the HTML content from the source variable
+        const source = w._vars[stmt.source] || w._htmlOutput || '';
+        if (stmt.out) w._vars[stmt.out] = source;
+        break;
+      }
     }
+  }
+  
+  // HTML Helper: Escape HTML special characters
+  _escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+  
+  // HTML Helper: Resolve HTML attributes
+  _resolveHtmlAttrs(attrs) {
+    if (!attrs) return {};
+    const resolved = {};
+    for (const [key, val] of Object.entries(attrs)) {
+      if (val && typeof val === 'object' && val.type) {
+        resolved[key] = this._resolveValue(val);
+      } else {
+        resolved[key] = val;
+      }
+    }
+    return resolved;
+  }
+  
+  // HTML Helper: Render attributes as HTML string
+  _renderAttrs(attrs) {
+    if (!attrs || Object.keys(attrs).length === 0) return '';
+    const parts = [];
+    for (const [key, val] of Object.entries(attrs)) {
+      if (val === true) {
+        parts.push(key);
+      } else if (val !== false && val !== null && val !== undefined) {
+        parts.push(`${key}="${this._escapeHtml(val)}"`);
+      }
+    }
+    return parts.length ? ' ' + parts.join(' ') : '';
+  }
+  
+  // HTML Helper: Append to appropriate context
+  _appendHtml(w, html) {
+    // Check nested contexts first
+    if (w._htmlFormContent) { w._htmlFormContent.push(html); return; }
+    if (w._htmlContainerContent) { w._htmlContainerContent.push(html); return; }
+    // Check document context
+    if (w._htmlContext) {
+      if (w._htmlStack?.includes('head')) {
+        w._htmlContext.head.push(html);
+      } else {
+        w._htmlContext.body.push(html);
+      }
+      return;
+    }
+    // Default: just output to _htmlOutput
+    w._htmlOutput = (w._htmlOutput || '') + html + '\n';
   }
 
   /** Recursively resolve all leaf values in a props object. */

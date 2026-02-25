@@ -625,6 +625,112 @@ assert condition with message "Must be true"
 
 ---
 
+# HTML Generation
+
+Generate HTML using natural English syntax — no angle brackets required.
+
+## Basic Elements
+
+```hyperianlang
+html heading 1 "Welcome" into h1
+html heading 2 "Subtitle" with class "sub" into h2
+html paragraph "Hello world" with class "intro" into p
+html span "inline text" with id "tag" into s
+
+html link to "https://example.com" with text "Click here" into anchor
+html image from "photo.jpg" with alt "My photo" into img
+html button "Submit" with type "submit" and class "btn" into btn
+html input with type "email" and name "email" and placeholder "Enter email" into inp
+```
+
+## Lists
+
+```hyperianlang
+html list ordered into ol
+  html item "First item"
+  html item "Second item"
+  html item "Third item"
+end list
+
+html list unordered into ul
+  html item "Apple"
+  html item "Banana"
+end list
+```
+
+## Tables
+
+```hyperianlang
+html table with class "data-table" into tbl
+  html row
+    html cell "Name"
+    html cell "Age"
+  end row
+  html row
+    html cell "Alice"
+    html cell "30"
+  end row
+end table
+```
+
+## Forms
+
+```hyperianlang
+html form with action "/submit" and method "POST" into frm
+  html label "Username:" with for "user"
+  html input with type "text" and name "user" and id "user"
+  html textarea with name "bio" and rows 4
+  html select with name "country"
+    html option "USA" with value "us"
+    html option "UK" with value "uk"
+  end select
+  html button "Submit" with type "submit"
+end form
+```
+
+## Document Structure
+
+```hyperianlang
+html document into page
+  html head
+    html title "My Page"
+    html meta charset "utf-8"
+    html link stylesheet "styles.css"
+    html script file "app.js"
+  end head
+  html body
+    html div with class "container"
+      html heading 1 "Welcome"
+      html paragraph "Content goes here"
+    end div
+  end body
+end html
+
+say page  // Outputs complete HTML document
+```
+
+## Container Elements
+
+```hyperianlang
+html div with class "wrapper" and id "main"
+  html section with class "intro"
+    html paragraph "Section content"
+  end section
+end div
+
+// Also: header, footer, nav, article, aside, main
+```
+
+## Attributes
+
+```hyperianlang
+// Common attributes via 'with' and 'and':
+html input with type "text" and name "field" and placeholder "Enter..." and required and disabled
+html button "Click" with class "btn" and id "submit" and style "color: blue"
+```
+
+---
+
 # Electron Desktop Apps
 
 Run any HyperianLang file as a desktop app:
