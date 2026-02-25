@@ -1,26 +1,28 @@
 # HyperianLang
 
-**Natural English-style scripting language for game development and automation.**
+**Natural English-style scripting language for Node.js and browsers.**
 
-Write code that reads like plain English — no cryptic symbols, no complex syntax. Perfect for beginners, game designers, and anyone who wants readable, maintainable scripts.
+Write code that reads like plain English — no cryptic symbols, no complex syntax. A general-purpose scripting language perfect for beginners, rapid prototyping, automation, and anyone who wants readable, maintainable code.
 
 ```hyperianlang
-let the player health be 100
-let the enemy damage be 25
+let the user count be 100
+let the growth rate be 1.5
 
-if the player health is greater than 0 then
-  decrease the player health by the enemy damage
-  print "Ouch! That hurt!"
+if the user count is greater than 50 then
+  let the projected users be the user count times the growth rate
+  print "Projected users: "
+  print the projected users
 end
 ```
 
 ## Features
 
-- **Natural English Syntax** — Write `let the player score be 0` instead of `let playerScore = 0`
-- **Multi-word Variables** — Use descriptive names like `the player health` or `the current level`
+- **Natural English Syntax** — Write `let the item count be 0` instead of `let itemCount = 0`
+- **Multi-word Variables** — Use descriptive names like `the response data` or `the current index`
 - **English Math** — Write `10 plus 5`, `20 divided by 4`, `3 times 4`
 - **Zero Dependencies** — Pure JavaScript, works in Node.js and browsers
 - **VS Code Extension** — Syntax highlighting, snippets, and code intelligence
+- **Full JS Interop** — Use alongside existing JavaScript code
 
 ## Installation
 
@@ -88,18 +90,19 @@ let result be 6 multiplied by 7  // 42
 
 ```hyperianlang
 // If-else
-if the player health is greater than 0 then
-  print "Player is alive!"
+if the balance is greater than 0 then
+  print "Account active"
 else
-  print "Game Over"
+  print "Insufficient funds"
 end
 
 // Repeat loop
-repeat 3 times
-  print "Hello!"
+repeat 5 times
+  print "Processing..."
 end
 
 // While loop
+let the counter be 0
 while the counter is less than 10
   increase the counter by 1
 end
@@ -108,12 +111,12 @@ end
 ### Functions
 
 ```hyperianlang
-define function "calculate damage" with base damage and multiplier
-  return base damage times multiplier
+define function "calculate total" with price and quantity
+  return price times quantity
 end
 
-call function "calculate damage" with 10 and 3 into the result
-print the result  // 30
+call function "calculate total" with 29.99 and 3 into the result
+print the result  // 89.97
 ```
 
 ### Arrays
@@ -153,29 +156,30 @@ match the grade
 end
 ```
 
-### Event Handlers (Game Scripting)
+### Event Handlers
 
 ```hyperianlang
-when game starts then
-  set the player health to 100
-  print "Welcome to the adventure!"
+when app starts then
+  set the connection status to "connected"
+  print "Application initialized"
 end
 
-when player clicks on enemy then
-  decrease the enemy health by 10
+when user clicks on button then
+  increase the click count by 1
+  print "Button clicked!"
 end
 ```
 
 ### Path Operations
 
 ```hyperianlang
-let the folder be "assets/images"
-let the file be "hero.png"
+let the folder be "src/utils"
+let the file be "helpers.js"
 join path the folder and the file into the full path
-// "assets/images/hero.png"
+// "src/utils/helpers.js"
 
 basename of the full path into the name
-// "hero.png"
+// "helpers.js"
 ```
 
 ## Comparison Operators
@@ -220,4 +224,4 @@ MIT
 
 ---
 
-Made with ❤️ for game developers and scripters who prefer readable code.
+Made with ❤️ for developers who prefer readable code.

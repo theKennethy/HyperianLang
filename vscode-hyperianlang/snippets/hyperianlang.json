@@ -178,13 +178,30 @@
     "body": ["join path ${1:folder} and ${2:file} into ${3:fullpath}"],
     "description": "Join path segments"
   },
-  "Game Player": {
-    "prefix": "player",
+  "User Profile": {
+    "prefix": "user",
     "body": [
-      "let the player health be ${1:100}",
-      "let the player gold be ${2:0}",
-      "let the player level be ${3:1}"
+      "let the user name be \"${1:name}\"",
+      "let the user email be \"${2:email@example.com}\"",
+      "let the is active be ${3:true}"
     ],
-    "description": "Initialize player variables"
+    "description": "Initialize user variables"
+  },
+  "HTTP Response": {
+    "prefix": "response",
+    "body": [
+      "let the status code be ${1:200}",
+      "let the response data be ${2:null}",
+      "let the error message be \"\""
+    ],
+    "description": "Initialize HTTP response variables"
+  },
+  "Counter": {
+    "prefix": "counter",
+    "body": [
+      "let the ${1:item} count be 0",
+      "increase the ${1:item} count by 1"
+    ],
+    "description": "Initialize and increment a counter"
   }
 }

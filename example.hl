@@ -4,128 +4,130 @@
 
 /*
   HyperianLang lets you write code that reads like English.
-  Perfect for game scripting, automation, and learning to code.
+  Works in Node.js and browsers with zero dependencies.
 */
 
 // ─── Variables ──────────────────────────────────────────────────
-let the player health be 100
-let the player gold be 50
-let the max health be 100
-let the current level be 1
+let the user name be "Alice"
+let the account balance be 1500.50
+let the is active be true
+let the item count be 0
 
 // ─── Math with English Words ────────────────────────────────────
-let the doubled health be the player health times 2
-let the bonus gold be 100 divided by 4
-let the damage be 25 minus 5
-let the total be 10 plus 20 plus 30
+let the subtotal be 99.99
+let the tax rate be 0.08
+let the tax amount be the subtotal times the tax rate
+let the total price be the subtotal plus the tax amount
+print "Total: "
+print the total price
+
+let the discount be 100 divided by 4
+let the final price be the total price minus the discount
 
 // ─── Arrays & Objects ───────────────────────────────────────────
-let the inventory be ["sword", "shield", "potion"]
-let the high scores be [1000, 850, 720, 650, 500]
+let the shopping cart be ["laptop", "mouse", "keyboard"]
+let the prices be [999.99, 29.99, 79.99]
 
-let the player stats be {
-  "strength": 15,
-  "defense": 10,
-  "magic": 8
+let the user profile be {
+  "name": "Alice",
+  "email": "alice@example.com",
+  "age": 28
 }
 
 // ─── Conditionals ───────────────────────────────────────────────
-if the player health is greater than 0 then
-  print "The hero stands ready for battle!"
+if the account balance is greater than 0 then
+  print "Account is active"
 else
-  print "Game Over - The hero has fallen."
+  print "Account needs funding"
 end
 
-if the player gold is less than 100 then
-  print "You need more gold to buy that item."
+if the item count is less than 10 then
+  print "Low inventory warning"
 end
 
 // ─── Loops ──────────────────────────────────────────────────────
-repeat 3 times
-  increase the player gold by 10
-  print "Found some gold!"
+let the counter be 0
+repeat 5 times
+  increase the counter by 1
+  print the counter
 end
 
-while the current level is less than 5
-  increase the current level by 1
-  print the current level
+let the index be 0
+while the index is less than 3
+  increase the index by 1
+  print "Processing batch..."
 end
 
 // ─── Transform (Map) ────────────────────────────────────────────
-let the scores be [10, 20, 30, 40, 50]
-transform the scores with n into n times 2 into doubled scores
+let the values be [10, 20, 30, 40, 50]
+transform the values with n into n times 2 into doubled values
 // Result: [20, 40, 60, 80, 100]
 
 // ─── Reduce (Fold) ──────────────────────────────────────────────
-reduce the high scores with total and score starting from 0 into grand total
-  let total be total plus score
+reduce the prices with total and price starting from 0 into cart total
+  let total be total plus price
 end
-// Result: 3720
+print "Cart total: "
+print the cart total
 
 // ─── Every & Any (Validation) ───────────────────────────────────
-every item in the scores is greater than 0 into all positive
-any item in the scores is greater than 100 into has bonus
+every item in the values is greater than 0 into all positive
+any item in the values is greater than 100 into has large value
 
 // ─── Match (Switch) ─────────────────────────────────────────────
-let the weapon type be "sword"
+let the status code be "200"
 
-match the weapon type
-  on "sword" then print "A mighty blade!"
-  on "bow" then print "Strike from afar!"
-  on "staff" then print "Magical power!"
-  else print "Unknown weapon type"
+match the status code
+  on "200" then print "OK - Request successful"
+  on "404" then print "Not Found"
+  on "500" then print "Server Error"
+  else print "Unknown status"
 end
 
 // ─── Functions ──────────────────────────────────────────────────
-define function "calculate damage" with base damage and multiplier
-  let result be base damage times multiplier
+define function "calculate tax" with amount and rate
+  let result be amount times rate
   return result
 end
 
-call function "calculate damage" with 10 and 3 into the final damage
-print "Damage dealt: "
-print the final damage
+call function "calculate tax" with 100 and 0.08 into the tax
+print "Tax: "
+print the tax
 
-define function "heal player" with heal amount
-  increase the player health by heal amount
-  if the player health is greater than the max health then
-    set the player health to the max health
-  end
-  return the player health
+define function "format currency" with value
+  return value
 end
 
 // ─── Copy & Assign (Object Operations) ──────────────────────────
-copy the player stats into the saved stats
-let the bonus stats be {"luck": 5}
-assign the player stats and the bonus stats into the full stats
+copy the user profile into the backup profile
+let the extra data be {"verified": true}
+assign the user profile and the extra data into the full profile
 
 // ─── Path Operations ────────────────────────────────────────────
-let the folder be "assets/images"
-let the filename be "hero.png"
+let the folder be "src/utils"
+let the filename be "helpers.js"
 join path the folder and the filename into the full path
-// Result: "assets/images/hero.png"
+// Result: "src/utils/helpers.js"
 
 basename of the full path into just the name
-// Result: "hero.png"
+// Result: "helpers.js"
 
-// ─── Event Handlers (Game Scripting) ────────────────────────────
-when game starts then
-  print "Welcome to the Adventure!"
-  set the player health to 100
-  set the player gold to 0
+// ─── Event Handlers ─────────────────────────────────────────────
+when app starts then
+  print "Application initialized!"
+  set the is active to true
 end
 
-when player clicks on enemy then
-  decrease the enemy health by the player damage
-  if the enemy health is less than 1 then
-    print "Enemy defeated!"
-    increase the player gold by 25
-  end
+when user clicks on submit then
+  print "Form submitted"
+  increase the item count by 1
 end
 
 // ─── Math Constants ─────────────────────────────────────────────
 let pi value be math pi
 let e value be math e
+
+print "Done!"
 
 // ═══════════════════════════════════════════════════════════════
 // End of Example - Happy Coding with HyperianLang!
