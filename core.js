@@ -847,6 +847,19 @@ class HLParser {
   _parseSingleCondition() {
     if (this._is('not')) { this._next(); return { type: 'not', condition: this._parseSingleCondition() }; }
 
+    // Handle bare boolean literals: if true then / if false then
+    if (this._isType('BOOLEAN')) {
+      const val = this._next().value;
+      return { type: 'booleanLiteral', value: val === true || val === 'true' };
+    }
+
+    // Handle numeric/string comparisons: if 10 is greater than 5 then
+    if (this._isType('NUMBER') || this._isType('STRING')) {
+      const left = this._parseValue();
+      if (this._is('is')) this._next();
+      return { type: 'valueComparison', left, comparison: this._parseComparison() };
+    }
+
     if (this._is('switch')) {
       this._next();
       const id = this._parseValue();
@@ -2336,6 +2349,12 @@ class HLInterpreter {
         if (cond.op === 'and') return this._evaluateCondition(cond.left) && this._evaluateCondition(cond.right);
         if (cond.op === 'or')  return this._evaluateCondition(cond.left) || this._evaluateCondition(cond.right);
         return false;
+      case 'booleanLiteral':
+        return cond.value;
+      case 'valueComparison': {
+        const left = this._resolveValue(cond.left);
+        return this._evalComparison(left, cond.comparison);
+      }
       case 'condition': {
         const val = this.world ? this.world.getProperty(cond.subject, cond.prop) : undefined;
         return this._evalComparison(val, cond.comparison);
