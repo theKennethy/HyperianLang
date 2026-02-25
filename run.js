@@ -81,6 +81,9 @@ es.load(source);
 
 async function main() {
   try {
+    // Execute init statements (including server code)
+    await es.run();
+    // Trigger the event (if there are event rules)
     await es.trigger(eventKey);
   } catch (err) {
     console.error('[HyperianLang] Runtime error:', err.message);

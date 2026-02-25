@@ -218,6 +218,161 @@ node test_english.js   # English syntax tests
 node test_wave3.js     # Feature tests
 ```
 
+---
+
+## HTTP Server Support
+
+HyperianLang includes built-in HTTP server capabilities with English-like syntax.
+
+### Starting a Server
+
+```hyperianlang
+start the server on port 3000
+```
+
+### Defining Routes
+
+Use the `when the server receives` syntax to define route handlers:
+
+```hyperianlang
+# GET request
+when the server receives a "GET" request to "/" then
+  respond with { message: "Hello World" }
+end
+
+# POST request
+when the server receives a "POST" request to "/users" then
+  set userData to get the body from request
+  respond with { success: true, data: userData }
+end
+
+# Route parameters
+when the server receives a "GET" request to "/users/:id" then
+  set params to get the params from request
+  set userId to get id from params
+  respond with { userId: userId }
+end
+```
+
+### Responses
+
+```hyperianlang
+# JSON response (default)
+respond with { status: "ok", data: users }
+
+# With explicit status code
+respond with 201 and { created: true }
+
+# HTML response
+send html "<html><body><h1>Hello</h1></body></html>"
+
+# CSS response
+send css "body { background: blue; }"
+```
+
+### Serving Static Files
+
+```hyperianlang
+# Serve an HTML file
+serve file "public/index.html"
+
+# Serve any static file (auto-detects MIME type)
+serve file "public/styles.css"
+serve file "public/script.js"
+serve file "public/image.png"
+```
+
+### Request Data
+
+Access request data using `get X from request`:
+
+```hyperianlang
+# Get request body (for POST/PUT)
+set body to get the body from request
+
+# Get URL parameters (for routes like /users/:id)
+set params to get the params from request
+set id to get id from params
+
+# Get query parameters
+set query to get the query from request
+```
+
+### Supported MIME Types
+
+When serving files, the following MIME types are auto-detected:
+
+| Extension | MIME Type |
+|-----------|-----------|
+| .html | text/html |
+| .css | text/css |
+| .js | application/javascript |
+| .json | application/json |
+| .png | image/png |
+| .jpg, .jpeg | image/jpeg |
+| .gif | image/gif |
+| .svg | image/svg+xml |
+| .ico | image/x-icon |
+| .txt | text/plain |
+
+---
+
+## Example: Complete Web Application
+
+### webapp.hl
+
+```hyperianlang
+# HyperianLang Web Application
+
+# Database for users
+create a list called users
+append { id: 1, name: "Alice", email: "alice@example.com" } to users
+append { id: 2, name: "Bob", email: "bob@example.com" } to users
+
+set nextId to 3
+
+log "Starting web application..."
+
+# Serve the main HTML page
+when the server receives a "GET" request to "/" then
+  serve file "public/index.html"
+end
+
+# API: Get all users
+when the server receives a "GET" request to "/api/users" then
+  respond with { success: true, data: users }
+end
+
+# API: Create a new user
+when the server receives a "POST" request to "/api/users" then
+  set userData to get the body from request
+  set userName to get name from userData
+  set userEmail to get email from userData
+  set newUser to { id: nextId, name: userName, email: userEmail }
+  append newUser to users
+  increase nextId by 1
+  respond with { success: true, user: newUser }
+end
+
+# API: Health check
+when the server receives a "GET" request to "/api/health" then
+  respond with { status: "ok", message: "Server is running" }
+end
+
+# Start the server
+start the server on port 3000
+```
+
+### Running the Web App
+
+```bash
+node run.js webapp.hl
+```
+
+Then open http://localhost:3000 in your browser.
+
+---
+
 ## License
 
 MIT

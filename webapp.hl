@@ -1,0 +1,59 @@
+# HyperianLang Web Application
+# Serves HTML pages and provides a REST API
+
+# Database for users
+create a list called users
+append { id: 1, name: "Alice Johnson", email: "alice@example.com" } to users
+append { id: 2, name: "Bob Smith", email: "bob@example.com" } to users
+append { id: 3, name: "Carol Davis", email: "carol@example.com" } to users
+
+# Counter for user IDs
+set nextId to 4
+
+log "Starting HyperianLang Web Application..."
+
+# Serve the main HTML page
+when the server receives a "GET" request to "/" then
+  serve file "public/index.html"
+end
+
+# API: Get all users
+when the server receives a "GET" request to "/api/users" then
+  respond with { success: true, data: users }
+end
+
+# API: Create a new user
+when the server receives a "POST" request to "/api/users" then
+  set userData to get the body from request
+  set userName to get name from userData
+  set userEmail to get email from userData
+  set newUser to { id: nextId, name: userName, email: userEmail }
+  append newUser to users
+  increase nextId by 1
+  respond with { success: true, user: newUser }
+end
+
+# API: Get a single user
+when the server receives a "GET" request to "/api/users/:id" then
+  set params to get the params from request
+  set userId to get id from params
+  set foundUser to nothing
+  for each person in users do
+    if get id from person equals userId then
+      set foundUser to person
+    end
+  end
+  if foundUser is nothing then
+    respond with { success: false, error: "User not found" }
+  otherwise
+    respond with { success: true, user: foundUser }
+  end
+end
+
+# API: Health check
+when the server receives a "GET" request to "/api/health" then
+  respond with { status: "ok", message: "Server is running" }
+end
+
+# Start the server
+start the server on port 3000

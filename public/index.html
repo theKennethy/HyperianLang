@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HyperianLang Web App</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 40px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { color: white; text-align: center; margin-bottom: 30px; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }
+    .card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+    .card h2 { color: #333; margin-bottom: 15px; }
+    .nav { display: flex; gap: 15px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap; }
+    .nav a { color: white; text-decoration: none; padding: 10px 20px; background: rgba(255,255,255,0.2); border-radius: 8px; transition: background 0.3s; }
+    .nav a:hover { background: rgba(255,255,255,0.3); }
+    ul { margin-left: 20px; margin-top: 10px; }
+    li { margin-bottom: 8px; }
+    .user-list { list-style: none; margin: 0; }
+    .user { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+    .user:last-child { border-bottom: none; }
+    .badge { background: #667eea; color: white; padding: 5px 12px; border-radius: 20px; font-size: 0.8em; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 20px; }
+    .stat { background: white; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+    .stat-num { font-size: 3em; font-weight: bold; color: #667eea; }
+    .stat-label { color: #666; margin-top: 10px; }
+    form { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+    input { padding: 15px; border: 2px solid #eee; border-radius: 8px; font-size: 1em; }
+    input:focus { outline: none; border-color: #667eea; }
+    button { padding: 15px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 1.1em; cursor: pointer; transition: background 0.3s; }
+    button:hover { background: #5a6fd6; }
+    .success { background: #10b981; color: white; padding: 15px; border-radius: 8px; margin-top: 15px; display: none; }
+    .loading { opacity: 0.7; pointer-events: none; }
+    #users-container { min-height: 100px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>HyperianLang Web App</h1>
+    <nav class="nav">
+      <a href="#home" onclick="showPage('home')">Home</a>
+      <a href="#users" onclick="showPage('users')">Users</a>
+      <a href="#stats" onclick="showPage('stats')">Stats</a>
+      <a href="#add" onclick="showPage('add')">Add User</a>
+    </nav>
+
+    <!-- Home Page -->
+    <div id="page-home" class="page">
+      <div class="card">
+        <h2>Welcome!</h2>
+        <p>This web application is built with HyperianLang - a programming language that reads like English.</p>
+        <br>
+        <p><strong>Features:</strong></p>
+        <ul>
+          <li>Dynamic HTML rendering</li>
+          <li>CSS styling</li>
+          <li>REST API endpoints</li>
+          <li>Real-time data updates</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Users Page -->
+    <div id="page-users" class="page" style="display:none">
+      <div class="card">
+        <h2>User Directory</h2>
+        <div id="users-container">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Stats Page -->
+    <div id="page-stats" class="page" style="display:none">
+      <div class="stats">
+        <div class="stat"><div class="stat-num" id="user-count">-</div><div class="stat-label">Total Users</div></div>
+        <div class="stat"><div class="stat-num">4</div><div class="stat-label">API Endpoints</div></div>
+        <div class="stat"><div class="stat-num">100%</div><div class="stat-label">Uptime</div></div>
+      </div>
+    </div>
+
+    <!-- Add User Page -->
+    <div id="page-add" class="page" style="display:none">
+      <div class="card">
+        <h2>Create New User</h2>
+        <form id="userForm">
+          <input type="text" id="name" placeholder="Full Name" required>
+          <input type="email" id="email" placeholder="Email Address" required>
+          <button type="submit">Add User</button>
+        </form>
+        <div id="success" class="success">User created successfully!</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showPage(page) {
+      document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+      document.getElementById('page-' + page).style.display = 'block';
+      if (page === 'users') loadUsers();
+      if (page === 'stats') loadStats();
+    }
+
+    async function loadUsers() {
+      const container = document.getElementById('users-container');
+      container.innerHTML = 'Loading...';
+      try {
+        const res = await fetch('/api/users');
+        const data = await res.json();
+        if (data.success && data.data.length > 0) {
+          container.innerHTML = '<ul class="user-list">' + data.data.map(u => 
+            `<li class="user"><div><strong>${u.name}</strong><br><small>${u.email}</small></div><span class="badge">ID: ${u.id}</span></li>`
+          ).join('') + '</ul>';
+        } else {
+          container.innerHTML = '<p>No users found.</p>';
+        }
+      } catch (e) {
+        container.innerHTML = '<p>Error loading users.</p>';
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/users');
+        const data = await res.json();
+        document.getElementById('user-count').textContent = data.data.length;
+      } catch (e) {}
+    }
+
+    document.getElementById('userForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button');
+      btn.classList.add('loading');
+      btn.textContent = 'Adding...';
+      
+      try {
+        const res = await fetch('/api/users', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            name: document.getElementById('name').value,
+            email: document.getElementById('email').value
+          })
+        });
+        const data = await res.json();
+        document.getElementById('success').style.display = 'block';
+        document.getElementById('name').value = '';
+        document.getElementById('email').value = '';
+        setTimeout(() => document.getElementById('success').style.display = 'none', 3000);
+      } catch (e) {
+        alert('Error creating user');
+      }
+      
+      btn.classList.remove('loading');
+      btn.textContent = 'Add User';
+    });
+
+    // Handle hash navigation
+    window.addEventListener('hashchange', () => {
+      const page = location.hash.slice(1) || 'home';
+      showPage(page);
+    });
+    
+    // Initial page
+    const initialPage = location.hash.slice(1) || 'home';
+    showPage(initialPage);
+  </script>
+</body>
+</html>

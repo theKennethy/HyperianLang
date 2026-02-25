@@ -1,0 +1,66 @@
+# HyperianLang - Full Node.js REST API Example
+
+# In-Memory Database
+let the users be [
+  {"id": 1, "name": "Alice", "email": "alice@example.com"},
+  {"id": 2, "name": "Bob", "email": "bob@example.com"},
+  {"id": 3, "name": "Charlie", "email": "charlie@example.com"}
+]
+
+let the products be [
+  {"id": 1, "name": "Laptop", "price": 999.99},
+  {"id": 2, "name": "Mouse", "price": 29.99},
+  {"id": 3, "name": "Keyboard", "price": 79.99}
+]
+
+let the next user id be 4
+let the next product id be 4
+
+# Root endpoint
+when the server receives a "GET" request to "/" then
+  send a response with status 200 and {"name": "HyperianLang API", "version": "1.0.0"}
+end
+
+# Health check
+when the server receives a "GET" request to "/api/health" then
+  send a response with status 200 and {"status": "healthy", "uptime": "running"}
+end
+
+# Get all users
+when the server receives a "GET" request to "/api/users" then
+  send a response with status 200 and {"success": true, "data": the users}
+end
+
+# Get all products  
+when the server receives a "GET" request to "/api/products" then
+  send a response with status 200 and {"success": true, "data": the products}
+end
+
+# Create a new user
+when the server receives a "POST" request to "/api/users" then
+  let the body be get body from request
+  let the new user be {"id": the next user id, "name": get name from the body, "email": get email from the body}
+  append the new user to the users
+  increase the next user id by 1
+  send a response with status 201 and {"success": true, "message": "User created", "data": the new user}
+end
+
+# Create a new product
+when the server receives a "POST" request to "/api/products" then
+  let the body be get body from request
+  let the new product be {"id": the next product id, "name": get name from the body, "price": get price from the body}
+  append the new product to the products
+  increase the next product id by 1
+  send a response with status 201 and {"success": true, "message": "Product created", "data": the new product}
+end
+
+# Echo endpoint
+when the server receives a "POST" request to "/api/echo" then
+  let the body be get body from request
+  send a response with status 200 and {"received": the body, "echo": true}
+end
+
+# Startup
+log "Starting HyperianLang API"
+
+start the server on port 3000

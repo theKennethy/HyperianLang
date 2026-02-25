@@ -34,6 +34,8 @@ const _ES_ACTIONS = new Set([
   // functions, match, array-pipeline, path, object
   'transform', 'reduce', 'copy', 'assign', 'serve',
   'match', 'respond', 'listen', 'every', 'any',
+  // server - English syntax
+  'start', 'send', 'when',
 ]);
 
 const _ES_PREPS = new Set([
@@ -71,7 +73,8 @@ const _ES_PREPS = new Set([
   'against', 'pattern',
   'starting', 'accumulator',
   'path', 'basename', 'dirname', 'extension', 'extname',
-  'port', 'route', 'request', 'response',
+  'port', 'route', 'request', 'response', 'server', 'receiving', 'receives', 'status',
+  'html', 'css', 'javascript',
   'infinity', 'pi', 'nan', 'math',
   'an', 'a', 'return',
   // English sentence helpers
@@ -310,7 +313,16 @@ class HLParser {
     const rules = [];
     const init  = [];
     while (this.pos < this.tokens.length) {
-      if (this._is('when')) {
+      // 'when receiving' or 'when the server receives' is a server route (statement), not a rule
+      const isServerRoute = this._is('when') && (
+        this._peek(1)?.value === 'receiving' ||
+        (this._peek(1)?.value === 'the' && this._peek(2)?.value === 'server') ||
+        this._peek(1)?.value === 'server'
+      );
+      if (isServerRoute) {
+        try { const stmt = this._parseStatement(); if (stmt) init.push(stmt); else this.pos++; }
+        catch (e) { console.warn('[HLParser] Stmt error:', e.message); this.pos++; }
+      } else if (this._is('when')) {
         try { rules.push(this._parseRule()); }
         catch (e) { console.warn('[HLParser] Rule error:', e.message); this.pos++; }
       } else {
@@ -475,6 +487,23 @@ class HLParser {
     if (FUNC_OPS.has(tok.value)) {
       this.pos++;
       return this._parseFuncExpr(tok.value);
+    }
+
+    // get X from Y -- property access as a value expression
+    // Patterns: "get X from Y", "get the X from Y", "get the X of Y"
+    if (tok.value === 'get') {
+      this._next(); // consume 'get'
+      if (this._is('the')) this._next(); // optional 'the'
+      
+      // Check for special patterns: body, params
+      const propName = this._consumeIdent();
+      if (this._is('from') || this._is('of')) {
+        this._next();
+        const objName = this._consumeIdent();
+        return { type: 'getObjKey', obj: objName, key: { type: 'string', value: propName } };
+      }
+      // If no 'from'/'of', return as identifier 'get_X'  
+      return { type: 'ident', value: 'get_' + propName };
     }
 
     if (tok.type === 'NULL') { this._next(); return { type: 'null', value: null }; }
@@ -788,6 +817,15 @@ class HLParser {
       case 'dirname':
       case 'extension':
       case 'extname':   return this._parsePathOp();
+      // server ops - English syntax
+      case 'start':     if (this._peek(1)?.value === 'server' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the') return this._parseStartServer(); return null;
+      case 'create':    if (this._peek(1)?.value === 'server' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the') return this._parseCreateServer(); return this._parseCreateFolder();
+      case 'send':      if (this._peek(1)?.value === 'response' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the' || this._peek(1)?.value === 'file' || this._peek(1)?.value === 'html' || this._peek(1)?.value === 'css') return this._parseSendResponse(); return null;
+      case 'when':      if (this._peek(1)?.value === 'receiving' || this._peek(1)?.value === 'the' || this._peek(1)?.value === 'server') return this._parseWhenReceiving(); return null;
+      // legacy server ops
+      case 'serve':     if (this._peek(1)?.value === 'file' || this._peek(1)?.value === 'the') return this._parseServeFile(); return this._parseServe();
+      case 'route':     return this._parseRoute();
+      case 'respond':   return this._parseRespond();
       case 'end':
         if (this._peek(1)?.value === 'battle') { this._next(); this._next(); return { type: 'endBattle' }; }
         if (this._peek(1)?.value === 'game')   { this._next(); this._next(); return { type: 'endGame' }; }
@@ -2090,12 +2128,176 @@ class HLParser {
     this._consume('log');
     const values = [this._parseValue()];
     while (this._peek() && !this._is('end') && !this._is('then') && !this._is('else') &&
-           this._peek().type !== 'KEYWORD' && (this._peek().type === 'IDENT' || this._peek().type === 'STRING' ||
-           this._peek().type === 'NUMBER' || this._peek().type === 'BOOLEAN' || this._peek().type === 'PREP' ||
-           this._peek().type === 'ACTION')) {
+           this._peek().type !== 'KEYWORD' && this._peek().type !== 'ACTION' &&
+           (this._peek().type === 'IDENT' || this._peek().type === 'STRING' ||
+           this._peek().type === 'NUMBER' || this._peek().type === 'BOOLEAN' || this._peek().type === 'PREP')) {
       values.push(this._parseValue());
     }
     return { type: 'logStmt', values };
+  }
+
+  // ── server operations ─────────────────────────────────────────────────────
+  // English: start the server on port 3000 / start a server on port 3000
+  _parseStartServer() {
+    this._consume('start');
+    if (this._is('a') || this._is('the')) this._next();
+    if (this._is('server')) this._consume('server');
+    if (this._is('on')) this._next();
+    if (this._is('port')) this._next();
+    const port = this._parseValue();
+    return { type: 'serve', port };
+  }
+
+  // English: create a server on port 3000 / create the server on port 3000
+  _parseCreateServer() {
+    this._consume('create');
+    if (this._is('a') || this._is('the')) this._next();
+    if (this._is('server')) this._consume('server');
+    if (this._is('on')) this._next();
+    if (this._is('port')) this._next();
+    const port = this._parseValue();
+    return { type: 'serve', port };
+  }
+
+  // English: send a response with status 200 and body {...}
+  // English: send the response 200 with {...}
+  // English: send html "<html>..." with status 200
+  // English: send file "index.html"
+  _parseSendResponse() {
+    this._consume('send');
+    if (this._is('a') || this._is('the')) this._next();
+    
+    // Handle "send file" / "send the file"
+    if (this._is('file')) {
+      this._next();
+      const path = this._parseValue();
+      return { type: 'serveFile', path };
+    }
+    
+    // Handle "send html" / "send css"
+    let contentType = null;
+    if (this._is('html')) {
+      this._next();
+      contentType = { type: 'string', value: 'html' };
+      const body = this._parseValue();
+      let status = { type: 'number', value: 200 };
+      if (this._is('with')) {
+        this._next();
+        if (this._is('status')) this._next();
+        status = this._parseValue();
+      }
+      return { type: 'respond', status, body, contentType };
+    }
+    if (this._is('css')) {
+      this._next();
+      contentType = { type: 'string', value: 'css' };
+      const body = this._parseValue();
+      let status = { type: 'number', value: 200 };
+      if (this._is('with')) {
+        this._next();
+        if (this._is('status')) this._next();
+        status = this._parseValue();
+      }
+      return { type: 'respond', status, body, contentType };
+    }
+    
+    if (this._is('response')) this._consume('response');
+    // Handle "with status X" or just "X"
+    if (this._is('with')) this._next();
+    if (this._is('status')) this._next();
+    
+    // If the next token is '{', this is just a body with implicit status 200
+    let status;
+    let body;
+    if (this._isType('LBRACE') || this._peek()?.value === '{') {
+      status = { type: 'number', value: 200 };
+      body = this._parseValue();
+    } else {
+      status = this._parseValue();
+      body = { type: 'object', pairs: [] };
+      if (this._is('and') || this._is('with')) {
+        this._next();
+        if (this._is('body')) this._next();
+        body = this._parseValue();
+      }
+    }
+    // Handle "as html" / "as css" / "as json"
+    if (this._is('as')) {
+      this._next();
+      contentType = this._parseValue();
+    }
+    return { type: 'respond', status, body, contentType };
+  }
+
+  // serve file "path/to/file.html"
+  // serve the file "path/to/file.html"
+  _parseServeFile() {
+    this._consume('serve');
+    if (this._is('the')) this._next();
+    if (this._is('file')) this._next();
+    const path = this._parseValue();
+    return { type: 'serveFile', path };
+  }
+
+  // English: when the server receives a "GET" request to "/" then ... end
+  // English: when receiving a "GET" request to "/" with request ... end
+  _parseWhenReceiving() {
+    this._consume('when');
+    if (this._is('the')) this._next();
+    if (this._is('server')) this._next();
+    if (this._is('receives') || this._is('receiving')) this._next();
+    if (this._is('a') || this._is('an')) this._next();
+    const method = this._parseValue(); // "GET", "POST", etc.
+    if (this._is('request')) this._next();
+    if (this._is('to') || this._is('at') || this._is('on')) this._next();
+    const path = this._parseValue();   // "/api/users"
+    let reqVar = 'request';
+    if (this._is('with')) { this._next(); reqVar = this._consumeIdent(); }
+    if (this._is('then')) this._next();
+    const body = this._parseBody(['end']);
+    if (this._is('end')) this._consume('end');
+    return { type: 'route', method, path, reqVar, body };
+  }
+
+  // Legacy: serve on port 3000
+  _parseServe() {
+    this._consume('serve');
+    if (this._is('on')) this._next();
+    if (this._is('port')) this._next();
+    const port = this._parseValue();
+    return { type: 'serve', port };
+  }
+
+  // Legacy: route "GET" "/path" with request
+  _parseRoute() {
+    this._consume('route');
+    const method = this._parseValue();
+    const path = this._parseValue();
+    let reqVar = 'request';
+    if (this._is('with')) { this._next(); reqVar = this._consumeIdent(); }
+    const body = this._parseBody(['end']);
+    if (this._is('end')) this._consume('end');
+    return { type: 'route', method, path, reqVar, body };
+  }
+
+  // Legacy: respond with 200 and {"data": value}
+  _parseRespond() {
+    this._consume('respond');
+    if (this._is('with')) this._next();
+    
+    // If the next token is '{', this is just a body with implicit status 200
+    if (this._isType('LBRACE') || this._peek()?.value === '{') {
+      const body = this._parseValue();
+      return { type: 'respond', status: { type: 'number', value: 200 }, body };
+    }
+    
+    const status = this._parseValue();
+    let body = { type: 'object', pairs: [] };
+    if (this._is('and') || this._is('with')) {
+      this._next();
+      body = this._parseValue();
+    }
+    return { type: 'respond', status, body };
   }
 
   _parseScreenFx(kind) {
@@ -2280,7 +2482,8 @@ class HLInterpreter {
     // Object literal: {key: value, ...}
     if (valNode.type === 'object') {
       const obj = {};
-      for (const pair of valNode.pairs) {
+      const pairs = valNode.pairs || valNode.props || [];
+      for (const pair of pairs) {
         obj[pair.key] = this._resolveValue(pair.value);
       }
       return obj;
@@ -3146,6 +3349,148 @@ class HLInterpreter {
       case 'logStmt': {
         const _lvals = (stmt.values || []).map(v => this._resolveValue(v));
         console.log(..._lvals);
+        break;
+      }
+
+      // ── HTTP server ───────────────────────────────────────────────────────
+      case 'serve': {
+        if (typeof require === 'undefined') break;
+        const _http = require('http');
+        const _port = this._resolveValue(stmt.port);
+        
+        // Initialize route storage
+        if (!this._httpRoutes) this._httpRoutes = [];
+        if (!this._httpServer) {
+          this._httpServer = _http.createServer((req, res) => {
+            const method = req.method;
+            const url = req.url.split('?')[0];
+            
+            // Find matching route
+            const route = this._httpRoutes.find(r => r.method === method && r.path === url);
+            
+            if (route) {
+              // Collect request body
+              let body = '';
+              req.on('data', chunk => body += chunk);
+              req.on('end', () => {
+                // Set up request object
+                const reqObj = {
+                  method: method,
+                  url: url,
+                  headers: req.headers,
+                  body: body ? JSON.parse(body) : {},
+                  query: Object.fromEntries(new URL(req.url, `http://localhost:${_port}`).searchParams)
+                };
+                
+                // Create response context
+                this._currentResponse = res;
+                
+                // Execute route body with request variable
+                const w = this.world || { _vars: {} };
+                w._vars[route.reqVar] = reqObj;
+                
+                for (const s of route.body) {
+                  this._executeStatement(s, w);
+                }
+              });
+            } else {
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Not Found' }));
+            }
+          });
+          
+          this._httpServer.listen(_port, () => {
+            console.log(`Server running on port ${_port}`);
+          });
+        }
+        break;
+      }
+
+      case 'route': {
+        if (!this._httpRoutes) this._httpRoutes = [];
+        this._httpRoutes.push({
+          method: this._resolveValue(stmt.method),
+          path: this._resolveValue(stmt.path),
+          reqVar: stmt.reqVar,
+          body: stmt.body
+        });
+        break;
+      }
+
+      case 'respond': {
+        if (this._currentResponse) {
+          const status = this._resolveValue(stmt.status);
+          let body = this._resolveValue(stmt.body);
+          let contentType = 'application/json';
+          
+          // Auto-detect content type
+          if (typeof body === 'string') {
+            const trimmed = body.trim();
+            if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') || trimmed.startsWith('<') && trimmed.includes('</')) {
+              contentType = 'text/html';
+            } else if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+              contentType = 'application/json';
+            } else if (trimmed.includes('body {') || trimmed.includes('.') && trimmed.includes('{')) {
+              contentType = 'text/css';
+            } else {
+              contentType = 'text/plain';
+            }
+          } else if (typeof body === 'object') {
+            body = JSON.stringify(body);
+            contentType = 'application/json';
+          }
+          
+          // Check for explicit content type in statement
+          if (stmt.contentType) {
+            const ct = this._resolveValue(stmt.contentType);
+            if (ct === 'html') contentType = 'text/html';
+            else if (ct === 'css') contentType = 'text/css';
+            else if (ct === 'json') contentType = 'application/json';
+            else if (ct === 'text') contentType = 'text/plain';
+            else if (ct === 'javascript' || ct === 'js') contentType = 'application/javascript';
+            else contentType = ct;
+          }
+          
+          this._currentResponse.writeHead(status, { 'Content-Type': contentType });
+          this._currentResponse.end(body);
+          this._currentResponse = null;
+        }
+        break;
+      }
+
+      case 'serveFile': {
+        if (this._currentResponse && typeof require !== 'undefined') {
+          const _fs = require('fs');
+          const _path = require('path');
+          const filePath = this._resolveValue(stmt.path);
+          const ext = _path.extname(filePath).toLowerCase();
+          
+          const mimeTypes = {
+            '.html': 'text/html',
+            '.css': 'text/css',
+            '.js': 'application/javascript',
+            '.json': 'application/json',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.svg': 'image/svg+xml',
+            '.ico': 'image/x-icon',
+            '.txt': 'text/plain'
+          };
+          
+          const contentType = mimeTypes[ext] || 'application/octet-stream';
+          
+          try {
+            const content = _fs.readFileSync(filePath);
+            this._currentResponse.writeHead(200, { 'Content-Type': contentType });
+            this._currentResponse.end(content);
+          } catch (e) {
+            this._currentResponse.writeHead(404, { 'Content-Type': 'text/plain' });
+            this._currentResponse.end('File not found');
+          }
+          this._currentResponse = null;
+        }
         break;
       }
     }
