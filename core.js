@@ -19,6 +19,10 @@ const _ES_KEYWORDS = new Set([
   'await', 'async',
   // timers
   'after', 'interval',
+  // lambda/arrow functions
+  'lambda', 'arrow',
+  // destructuring
+  'extract',
 ]);
 
 const _ES_ACTIONS = new Set([
@@ -60,6 +64,9 @@ const _ES_ACTIONS = new Set([
   'await', 'async', 'promise', 'resolve', 'reject',
   // check
   'check',
+  // new features
+  'spread', 'hash', 'encrypt', 'decrypt', 'encode', 'decode',
+  'buffer', 'safely',
 ]);
 
 const _ES_PREPS = new Set([
@@ -119,6 +126,10 @@ const _ES_PREPS = new Set([
   'module', 'export', 'exports', 'require',
   // Map/Set preps
   'map', 'set', 'entry', 'entries', 'size',
+  // new feature preps
+  'lambda', 'arrow', 'safely', 'otherwise', 'default', 'using', 'algorithm',
+  'sha256', 'sha512', 'md5', 'sha1', 'hex', 'base64', 'utf8', 'binary',
+  'buffer', 'crypto', 'bytes',
 ]);
 
 const _ES_COMPARISONS = new Set([
@@ -317,6 +328,7 @@ class HLParser {
   _consumeIdentOrString() {
     const tok = this._peek();
     if (tok?.type === 'STRING') { this.pos++; return tok.value; }
+    if (tok?.type === 'INTERPOLATED_STRING') { this.pos++; return { __interpolated: true, parts: tok.parts }; }
     if (tok?.type === 'IDENT' || tok?.type === 'PREP' || tok?.type === 'ACTION' || tok?.type === 'KEYWORD') { this.pos++; return tok.value; }
     throw new Error(`HLParser: expected identifier or string but got "${tok?.value}"`);
   }
@@ -978,7 +990,22 @@ class HLParser {
       // Regex
       case 'regex':     return this._parseRegex();
       case 'test':      return this._parseRegexTest();
-      case 'extract':   return this._parseRegexExtract();
+      case 'extract': {
+        // Look ahead to determine if this is regex extract or destructuring
+        // Regex: extract "pattern" from text
+        // Destructuring: extract name and age from object
+        const next = this._peek(1);
+        if (next?.type === 'STRING' || next?.type === 'IDENT' && this._peek(2)?.value === 'from') {
+          // Could be either - check if pattern looks like regex or ident list
+          // If next token after 'extract' is a STRING (pattern), use regex
+          if (next?.type === 'STRING') {
+            return this._parseRegexExtract();
+          }
+          // Otherwise check if we have "name and name from" pattern for destructuring
+          return this._parseExtract();
+        }
+        return this._parseExtract();
+      }
       // Child processes
       case 'execute':   return this._parseExecuteCommand();
       case 'shell':     return this._parseShellCommand();
@@ -996,6 +1023,19 @@ class HLParser {
       case 'interval':  return this._parseInterval();
       // Check contains
       case 'check':     return this._parseCheck();
+      // Lambda functions
+      case 'lambda':    return this._parseLambda();
+      // Spread
+      case 'spread':    return this._parseSpread();
+      // Crypto/hashing
+      case 'hash':      return this._parseHash();
+      case 'encrypt':   return this._parseEncrypt();
+      case 'decode':    return this._parseDecode();
+      case 'encode':    return this._parseEncode();
+      // Buffer
+      case 'buffer':    return this._parseBuffer();
+      // Safe access (optional chaining + nullish coalescing)
+      case 'safely':    return this._parseSafeGet();
       default: this._next(); return null;
     }
   }
@@ -1272,11 +1312,20 @@ class HLParser {
       this._next();
       while (this.pos < this.tokens.length) {
         const tok = this._peek();
-        if (!tok || tok.type === 'KEYWORD') break;
+        if (!tok || this._is('into')) break;
+        // Skip 'and' between arguments
+        if (this._is('and') || this._is(',')) { this._next(); continue; }
+        // Stop on other keywords that aren't valid values
+        if (tok.type === 'KEYWORD' && tok.value !== 'true' && tok.value !== 'false' && tok.value !== 'null' && tok.value !== 'nothing') break;
         try { args.push(this._parseValue()); } catch { break; }
       }
     }
-    return { type: 'call', fn, args };
+    let out = null;
+    if (this._is('into')) {
+      this._next();
+      out = this._consumeIdent();
+    }
+    return { type: 'call', fn, args, out };
   }
 
   _parseEmit() {
@@ -1405,6 +1454,22 @@ class HLParser {
       const body = this._parseBody(['end']);
       if (this._is('end')) this._consume('end');
       return { type: 'defineFunction', id, params, body };
+    }
+
+    // define lambda double with x as x times 2
+    if (kind === 'lambda' || kind === 'arrow') {
+      const name = this._consumeIdent();
+      const params = [];
+      if (this._is('with')) {
+        this._next();
+        while (this._peek() && !this._is('as') && !this._is('do') && !this._is('then')) {
+          params.push(this._consumeIdent());
+          if (this._is('and') || this._is(',')) this._next(); else break;
+        }
+      }
+      if (this._is('as') || this._is('do') || this._is('then')) this._next();
+      const expr = this._parseValue();
+      return { type: 'defineLambda', name, params, expr };
     }
 
     if (kind === 'sprite') {
@@ -1585,7 +1650,19 @@ class HLParser {
 
   _parseSay() {
     this._consume('say');
-    const text = { type: 'string', value: this._consumeIdentOrString() };
+    // Check for interpolated string
+    const tok = this._peek();
+    let text;
+    if (tok?.type === 'INTERPOLATED_STRING') {
+      this._next();
+      text = { type: 'interpolatedString', parts: tok.parts };
+    } else {
+      text = { type: 'string', value: this._consumeIdentOrString() };
+      // Handle if _consumeIdentOrString returned an interpolated obj  
+      if (text.value && text.value.__interpolated) {
+        text = { type: 'interpolatedString', parts: text.value.parts };
+      }
+    }
     let speaker = '', portrait = '';
     if (this._is('as')) { this._next(); speaker = this._consumeIdentOrString(); }
     if (this._is('with') && this._peek(1)?.value === 'portrait') { this._next(); this._next(); portrait = this._consumeIdentOrString(); }
@@ -3085,6 +3162,146 @@ class HLParser {
     const out = this._consumeIdent();
     return { type: 'checkContains', haystack, needle, checkType, out };
   }
+
+  // ── define lambda double as x times 2 ─────────────────────────────────────
+  // Arrow/lambda functions: define lambda name with param as expression
+  _parseLambda() {
+    this._consume('lambda');
+    const name = this._consumeIdent();
+    let params = [];
+    if (this._is('with')) {
+      this._next();
+      while (this._peek() && !this._is('as') && !this._is('do') && !this._is('then')) {
+        params.push(this._consumeIdent());
+        if (this._is('and') || this._is(',')) this._next(); else break;
+      }
+    }
+    if (this._is('as') || this._is('do') || this._is('then')) this._next();
+    const expr = this._parseValue();
+    return { type: 'defineLambda', name, params, expr };
+  }
+
+  // ── extract name and age from person into extracted ───────────────────────
+  // Destructuring objects/arrays
+  _parseExtract() {
+    this._consume('extract');
+    const keys = [];
+    while (this._peek() && !this._is('from')) {
+      keys.push(this._consumeIdent());
+      if (this._is('and') || this._is(',')) this._next(); else break;
+    }
+    if (this._is('from')) this._next();
+    const source = this._consumeIdent();
+    let into = null;
+    if (this._is('into')) {
+      this._next();
+      into = this._consumeIdent();
+    }
+    return { type: 'destructure', keys, source, into };
+  }
+
+  // ── spread items into newList ─────────────────────────────────────────────
+  // Spread operator
+  _parseSpread() {
+    this._consume('spread');
+    const sources = [];
+    while (this._peek() && !this._is('into')) {
+      sources.push(this._consumeIdent());
+      if (this._is('and') || this._is(',')) this._next(); else break;
+    }
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'spread', sources, out };
+  }
+
+  // ── hash "text" using sha256 into result ──────────────────────────────────
+  // Crypto hashing
+  _parseHash() {
+    this._consume('hash');
+    const input = this._parseValue();
+    let algorithm = 'sha256';
+    if (this._is('using') || this._is('with')) {
+      this._next();
+      algorithm = this._consumeIdent();
+    }
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'hash', input, algorithm, out };
+  }
+
+  // ── encrypt "text" using "key" into result ────────────────────────────────
+  _parseEncrypt() {
+    this._consume('encrypt');
+    const input = this._parseValue();
+    let key = null;
+    if (this._is('using') || this._is('with')) {
+      this._next();
+      key = this._parseValue();
+    }
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'encrypt', input, key, out };
+  }
+
+  // ── decode base64 "encoded" into result ───────────────────────────────────
+  _parseDecode() {
+    this._consume('decode');
+    let encoding = 'base64';
+    if (this._is('base64') || this._is('hex') || this._is('utf8')) {
+      encoding = this._consumeIdent();
+    }
+    const input = this._parseValue();
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'decode', encoding, input, out };
+  }
+
+  // ── encode "text" as base64 into result ───────────────────────────────────
+  _parseEncode() {
+    this._consume('encode');
+    const input = this._parseValue();
+    let encoding = 'base64';
+    if (this._is('as') || this._is('to')) {
+      this._next();
+      encoding = this._consumeIdent();
+    }
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'encode', encoding, input, out };
+  }
+
+  // ── buffer from "text" into buf ───────────────────────────────────────────
+  _parseBuffer() {
+    this._consume('buffer');
+    if (this._is('from')) this._next();
+    const input = this._parseValue();
+    let encoding = 'utf8';
+    if (this._is('as') || this._is('encoding')) {
+      this._next();
+      encoding = this._consumeIdent();
+    }
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'createBuffer', input, encoding, out };
+  }
+
+  // ── safely get X from obj otherwise default into result ───────────────────
+  // Optional chaining + nullish coalescing
+  _parseSafeGet() {
+    this._consume('safely');
+    if (this._is('get')) this._next();
+    const key = this._parseValue();
+    if (this._is('from') || this._is('of')) this._next();
+    const source = this._consumeIdent();
+    let defaultVal = { type: 'null', value: null };
+    if (this._is('otherwise') || this._is('or') || this._is('default')) {
+      this._next();
+      defaultVal = this._parseValue();
+    }
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'safeGet', source, key, defaultVal, out };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3483,7 +3700,22 @@ class HLInterpreter {
       case 'loadTileset': w && w.loadTileset(this._resolveValue(stmt.src));             break;
       case 'print':       w && w.log(this._resolveValue(stmt.message));                 break;
       case 'wait':        w && await w.wait(this._resolveValue(stmt.duration));         break;
-      case 'call':        w && w.callFunction(stmt.fn, stmt.args.map(a => this._resolveValue(a))); break;
+      case 'call': {
+        // Check if it's a lambda stored in variables first
+        const lambdaFn = w ? w._vars[stmt.fn] : null;
+        if (lambdaFn && lambdaFn.__isLambda) {
+          const _savedVars = { ...w._vars };
+          (lambdaFn.params || []).forEach((p, i) => {
+            w._vars[p] = this._resolveValue(stmt.args[i]);
+          });
+          const result = this._resolveValue(lambdaFn.expr);
+          w._vars = _savedVars;
+          if (stmt.out) w._vars[stmt.out] = result;
+        } else {
+          w && w.callFunction(stmt.fn, stmt.args.map(a => this._resolveValue(a)));
+        }
+        break;
+      }
       case 'callEvent': {
         const evBody = this._definedEvents.get(stmt.id);
         if (evBody) { await this._executeBody(evBody); }
@@ -4108,6 +4340,21 @@ class HLInterpreter {
         break;
       }
       case 'callFunction': {
+        // Check if it's a lambda stored in variables
+        const lambdaFn = w ? w._vars[stmt.id] : null;
+        if (lambdaFn && lambdaFn.__isLambda) {
+          const _savedVars = { ...w._vars };
+          // Bind lambda params to args
+          (lambdaFn.params || []).forEach((p, i) => {
+            w._vars[p] = this._resolveValue((stmt.args || [])[i]);
+          });
+          // Evaluate lambda expression
+          const result = this._resolveValue(lambdaFn.expr);
+          w._vars = _savedVars;
+          if (stmt.out) w._vars[stmt.out] = result;
+          break;
+        }
+        
         const _fn = this._functions.get(stmt.id);
         if (!_fn) { if (stmt.out && w) w._vars[stmt.out] = null; break; }
         const w2 = w;
@@ -4835,6 +5082,139 @@ class HLInterpreter {
           result = String(haystack).endsWith(String(needle));
         }
         
+        w._vars[stmt.out] = result;
+        break;
+      }
+
+      case 'defineLambda': {
+        if (!w) break;
+        // Store lambda definition for later invocation
+        w._vars[stmt.name] = {
+          __isLambda: true,
+          params: stmt.params,
+          expr: stmt.expr
+        };
+        break;
+      }
+
+      case 'destructure': {
+        if (!w) break;
+        const source = w._vars[stmt.source];
+        if (Array.isArray(source)) {
+          // Array destructuring: extract by index
+          stmt.keys.forEach((key, idx) => {
+            w._vars[key] = source[idx];
+          });
+        } else if (typeof source === 'object' && source !== null) {
+          // Object destructuring: extract by key
+          stmt.keys.forEach(key => {
+            w._vars[key] = source[key];
+          });
+        }
+        if (stmt.into) {
+          // Also create an object with extracted values
+          const extracted = {};
+          stmt.keys.forEach(key => {
+            extracted[key] = w._vars[key];
+          });
+          w._vars[stmt.into] = extracted;
+        }
+        break;
+      }
+
+      case 'spread': {
+        if (!w) break;
+        const combined = [];
+        for (const src of stmt.sources) {
+          const val = w._vars[src];
+          if (Array.isArray(val)) {
+            combined.push(...val);
+          } else if (typeof val === 'object' && val !== null) {
+            combined.push(...Object.values(val));
+          } else if (val !== undefined) {
+            combined.push(val);
+          }
+        }
+        w._vars[stmt.out] = combined;
+        break;
+      }
+
+      case 'hash': {
+        if (!w) break;
+        const crypto = require('crypto');
+        const input = this._resolveValue(stmt.input);
+        const hash = crypto.createHash(stmt.algorithm).update(String(input)).digest('hex');
+        w._vars[stmt.out] = hash;
+        break;
+      }
+
+      case 'encrypt': {
+        if (!w) break;
+        const crypto = require('crypto');
+        const input = this._resolveValue(stmt.input);
+        const key = this._resolveValue(stmt.key);
+        // Simple AES-256-CBC encryption
+        const algorithm = 'aes-256-cbc';
+        const keyBuffer = crypto.createHash('sha256').update(String(key)).digest();
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv(algorithm, keyBuffer, iv);
+        let encrypted = cipher.update(String(input), 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        w._vars[stmt.out] = iv.toString('hex') + ':' + encrypted;
+        break;
+      }
+
+      case 'decode': {
+        if (!w) break;
+        const input = this._resolveValue(stmt.input);
+        let result;
+        if (stmt.encoding === 'base64') {
+          result = Buffer.from(String(input), 'base64').toString('utf8');
+        } else if (stmt.encoding === 'hex') {
+          result = Buffer.from(String(input), 'hex').toString('utf8');
+        } else {
+          result = String(input);
+        }
+        w._vars[stmt.out] = result;
+        break;
+      }
+
+      case 'encode': {
+        if (!w) break;
+        const input = this._resolveValue(stmt.input);
+        let result;
+        if (stmt.encoding === 'base64') {
+          result = Buffer.from(String(input), 'utf8').toString('base64');
+        } else if (stmt.encoding === 'hex') {
+          result = Buffer.from(String(input), 'utf8').toString('hex');
+        } else {
+          result = String(input);
+        }
+        w._vars[stmt.out] = result;
+        break;
+      }
+
+      case 'createBuffer': {
+        if (!w) break;
+        const input = this._resolveValue(stmt.input);
+        const encoding = stmt.encoding || 'utf8';
+        w._vars[stmt.out] = Buffer.from(String(input), encoding);
+        break;
+      }
+
+      case 'safeGet': {
+        if (!w) break;
+        const source = w._vars[stmt.source];
+        const key = this._resolveValue(stmt.key);
+        const defaultVal = this._resolveValue(stmt.defaultVal);
+        let result;
+        if (source === null || source === undefined) {
+          result = defaultVal;
+        } else if (typeof source === 'object') {
+          result = source[key] ?? defaultVal;
+        } else {
+          result = defaultVal;
+        }
         w._vars[stmt.out] = result;
         break;
       }
