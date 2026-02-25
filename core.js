@@ -27,6 +27,16 @@ const _ES_KEYWORDS = new Set([
   'generator', 'yield',
   // advanced JS
   'proxy', 'symbol', 'bigint', 'weakmap', 'weakset',
+  // Promise API
+  'promise', 'all', 'race', 'allsettled', 'anyof',
+  // Date/Time
+  'date', 'time', 'now',
+  // TypedArrays
+  'typed', 'arraybuffer', 'dataview',
+  // Reflect
+  'reflect',
+  // Intl
+  'format', 'locale',
 ]);
 
 const _ES_ACTIONS = new Set([
@@ -74,6 +84,20 @@ const _ES_ACTIONS = new Set([
   // generators, proxies, symbols
   'generate', 'yield', 'intercept', 'trap',
   'tag', 'produce', 'emit', 'wrap', 'process', 'combine',
+  // Promise API
+  'all', 'race', 'settle', 'parallel',
+  // Object methods
+  'freezeobj', 'sealobj', 'compare', 'frompairs',
+  // Array methods
+  'arrayfrom', 'isarray', 'flatmap', 'fillarr', 'copywithin',
+  // Date/Time
+  'getdate', 'gettime', 'setdate', 'settime', 'toiso', 'timestamp',
+  // TypedArrays
+  'uint8', 'int32', 'float64', 'view',
+  // Reflect API
+  'reflectget', 'reflectset', 'reflecthas', 'reflectdelete',
+  // Intl
+  'formatdate', 'formatnumber', 'currency',
 ]);
 
 const _ES_PREPS = new Set([
@@ -146,6 +170,22 @@ const _ES_PREPS = new Set([
   'tag', 'tagged', 'template', 'raw', 'strings', 'literal',
   // More natural English connectors
   'called', 'named', 'produces', 'emits', 'starting', 'wrapped',
+  // Promise API
+  'promises', 'settled', 'resolved', 'rejected', 'parallel', 'concurrently',
+  // Object methods
+  'frozen', 'sealed', 'identical', 'pairs', 'entries',
+  // Array methods
+  'filled', 'copied', 'isarray', 'typed',
+  // Date/Time
+  'year', 'month', 'day', 'hour', 'minute', 'second', 'millisecond',
+  'timezone', 'iso', 'utc', 'local',
+  // TypedArrays
+  'uint8', 'int8', 'uint16', 'int16', 'uint32', 'int32', 'float32', 'float64',
+  'bytes', 'view', 'offset', 'bytelength',
+  // Reflect
+  'reflect', 'property', 'descriptor', 'configurable', 'enumerable', 'writable',
+  // Intl
+  'locale', 'currency', 'style', 'notation', 'compact', 'scientific',
 ]);
 
 const _ES_COMPARISONS = new Set([
@@ -1073,6 +1113,56 @@ class HLParser {
       case 'process':   return this._parseProcess();  // English alias for tag
       // Spread alternative
       case 'combine':   return this._parseCombine();  // English alias for spread
+      // ═══════════════════════════════════════════════════════════════════════
+      // PROMISE API
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'promise':   return this._parsePromise();
+      case 'all':       return this._parsePromiseAll();
+      case 'race':      return this._parsePromiseRace();
+      case 'parallel':  return this._parsePromiseAll();  // English alias
+      case 'settle':    return this._parsePromiseAllSettled();
+      // ═══════════════════════════════════════════════════════════════════════
+      // OBJECT METHODS
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'freezeobj': return this._parseFreezeObj();
+      case 'sealobj':   return this._parseSealObj();
+      case 'compare':   return this._parseObjectIs();
+      case 'frompairs': return this._parseFromPairs();
+      // ═══════════════════════════════════════════════════════════════════════
+      // ARRAY METHODS
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'arrayfrom': return this._parseArrayFrom();
+      case 'isarray':   return this._parseIsArray();
+      case 'flatmap':   return this._parseFlatMap();
+      case 'fillarr':   return this._parseFillArray();
+      // ═══════════════════════════════════════════════════════════════════════
+      // DATE/TIME
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'date':      return this._parseDate();
+      case 'now':       return this._parseNow();
+      case 'timestamp': return this._parseTimestamp();
+      case 'toiso':     return this._parseToISO();
+      // ═══════════════════════════════════════════════════════════════════════
+      // TYPED ARRAYS
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'uint8':     return this._parseTypedArray('Uint8Array');
+      case 'int32':     return this._parseTypedArray('Int32Array');
+      case 'float64':   return this._parseTypedArray('Float64Array');
+      case 'arraybuffer': return this._parseArrayBuffer();
+      case 'view':      return this._parseDataView();
+      // ═══════════════════════════════════════════════════════════════════════
+      // REFLECT API
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'reflect':   return this._parseReflect();
+      case 'reflectget': return this._parseReflectGet();
+      case 'reflectset': return this._parseReflectSet();
+      case 'reflecthas': return this._parseReflectHas();
+      // ═══════════════════════════════════════════════════════════════════════
+      // INTL FORMATTING
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'formatdate': return this._parseFormatDate();
+      case 'formatnumber': return this._parseFormatNumber();
+      case 'currency':  return this._parseCurrency();
       default: this._next(); return null;
     }
   }
@@ -3544,6 +3634,388 @@ class HLParser {
     const out = this._consumeIdent();
     return { type: 'spread', sources, out };
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROMISE API PARSERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // "promise resolve 42 into result" or "promise reject 'error' into result"
+  _parsePromise() {
+    this._consume('promise');
+    const action = this._consumeIdent(); // 'resolve' or 'reject'
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'promise', action, value, out };
+  }
+
+  // "all promises listOfPromises into results" or "parallel promises into results"
+  _parsePromiseAll() {
+    this._next(); // consume 'all' or 'parallel'
+    if (this._is('promises')) this._next();
+    const promises = this._consumeIdent();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'promiseAll', promises, out };
+  }
+
+  // "race promises listOfPromises into winner"
+  _parsePromiseRace() {
+    this._consume('race');
+    if (this._is('promises')) this._next();
+    const promises = this._consumeIdent();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'promiseRace', promises, out };
+  }
+
+  // "settle promises listOfPromises into results"
+  _parsePromiseAllSettled() {
+    this._consume('settle');
+    if (this._is('promises') || this._is('all')) this._next();
+    const promises = this._consumeIdent();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'promiseAllSettled', promises, out };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // OBJECT METHODS PARSERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // "freezeobj myObject"
+  _parseFreezeObj() {
+    this._consume('freezeobj');
+    const obj = this._consumeIdent();
+    return { type: 'freezeObj', obj };
+  }
+
+  // "sealobj myObject"
+  _parseSealObj() {
+    this._consume('sealobj');
+    const obj = this._consumeIdent();
+    return { type: 'sealObj', obj };
+  }
+
+  // "compare a with b into result" (Object.is)
+  _parseObjectIs() {
+    this._consume('compare');
+    const a = this._parseValue();
+    if (this._is('with') || this._is('to') || this._is('and')) this._next();
+    const b = this._parseValue();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'objectIs', a, b, out };
+  }
+
+  // "frompairs entries into object" (Object.fromEntries)
+  _parseFromPairs() {
+    this._consume('frompairs');
+    const entries = this._consumeIdent();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'fromPairs', entries, out };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ARRAY METHODS PARSERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // "arrayfrom iterable into array"
+  _parseArrayFrom() {
+    this._consume('arrayfrom');
+    const iterable = this._consumeIdent();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'arrayFrom', iterable, out };
+  }
+
+  // "isarray value into result"
+  _parseIsArray() {
+    this._consume('isarray');
+    const value = this._consumeIdent();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'isArray', value, out };
+  }
+
+  // "flatmap arr with fn into result"
+  _parseFlatMap() {
+    this._consume('flatmap');
+    const arr = this._consumeIdent();
+    if (this._is('with') || this._is('using')) this._next();
+    const fn = this._consumeIdent();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'flatMap', arr, fn, out };
+  }
+
+  // "fillarr arr with value" or "fillarr arr with value from 0 to 5"
+  _parseFillArray() {
+    this._consume('fillarr');
+    const arr = this._consumeIdent();
+    if (this._is('with')) this._next();
+    const value = this._parseValue();
+    let start = null, end = null;
+    if (this._is('from')) {
+      this._next();
+      start = this._parseValue();
+      if (this._is('to')) {
+        this._next();
+        end = this._parseValue();
+      }
+    }
+    return { type: 'fillArray', arr, value, start, end };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DATE/TIME PARSERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // "date create into myDate" or "date from '2024-01-01' into myDate"
+  _parseDate() {
+    this._consume('date');
+    let dateValue = null;
+    if (this._is('create') || this._is('new')) {
+      this._next();
+    } else if (this._is('from')) {
+      this._next();
+      dateValue = this._parseValue();
+    } else {
+      // Try to parse a value directly
+      try { dateValue = this._parseValue(); } catch(e) {}
+    }
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'dateCreate', dateValue, out };
+  }
+
+  // "now into currentTime"
+  _parseNow() {
+    this._consume('now');
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'now', out };
+  }
+
+  // "timestamp from myDate into ts" or "timestamp into ts"
+  _parseTimestamp() {
+    this._consume('timestamp');
+    let dateVar = null;
+    if (this._is('from') || this._is('of')) {
+      this._next();
+      dateVar = this._consumeIdent();
+    }
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'timestamp', dateVar, out };
+  }
+
+  // "toiso myDate into isoString"
+  _parseToISO() {
+    this._consume('toiso');
+    const dateVar = this._consumeIdent();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'toISO', dateVar, out };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TYPED ARRAYS PARSERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // "uint8 from [1, 2, 3] into arr" or "uint8 size 10 into arr"
+  _parseTypedArray(arrayType) {
+    this._next(); // consume the type keyword
+    let source = null, size = null;
+    if (this._is('from')) {
+      this._next();
+      source = this._parseValue();
+    } else if (this._is('size') || this._is('length')) {
+      this._next();
+      size = this._parseValue();
+    } else {
+      // Try to parse as source directly
+      try { source = this._parseValue(); } catch(e) {}
+    }
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'typedArray', arrayType, source, size, out };
+  }
+
+  // "arraybuffer size 16 into buf"
+  _parseArrayBuffer() {
+    this._consume('arraybuffer');
+    if (this._is('size') || this._is('length')) this._next();
+    const size = this._parseValue();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'arrayBuffer', size, out };
+  }
+
+  // "view buffer from offset with length into dv"
+  _parseDataView() {
+    this._consume('view');
+    const buffer = this._consumeIdent();
+    let offset = null, length = null;
+    if (this._is('from') || this._is('offset')) {
+      this._next();
+      offset = this._parseValue();
+    }
+    if (this._is('with') || this._is('length')) {
+      this._next();
+      length = this._parseValue();
+    }
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'dataView', buffer, offset, length, out };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REFLECT API PARSERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // "reflect get property from obj into value"
+  _parseReflect() {
+    this._consume('reflect');
+    const action = this._consumeIdent(); // 'get', 'set', 'has', 'delete'
+    if (action === 'get') {
+      if (this._is('property')) this._next();
+      const prop = this._parseValue();
+      if (this._is('from') || this._is('of')) this._next();
+      const obj = this._consumeIdent();
+      if (this._is('into') || this._is('called') || this._is('as')) this._next();
+      const out = this._consumeIdent();
+      return { type: 'reflectGet', obj, prop, out };
+    } else if (action === 'set') {
+      if (this._is('property')) this._next();
+      const prop = this._parseValue();
+      if (this._is('on') || this._is('of') || this._is('in')) this._next();
+      const obj = this._consumeIdent();
+      if (this._is('to')) this._next();
+      const value = this._parseValue();
+      return { type: 'reflectSet', obj, prop, value };
+    } else if (action === 'has') {
+      if (this._is('property')) this._next();
+      const prop = this._parseValue();
+      if (this._is('in') || this._is('on') || this._is('of')) this._next();
+      const obj = this._consumeIdent();
+      if (this._is('into') || this._is('called') || this._is('as')) this._next();
+      const out = this._consumeIdent();
+      return { type: 'reflectHas', obj, prop, out };
+    } else if (action === 'delete') {
+      if (this._is('property')) this._next();
+      const prop = this._parseValue();
+      if (this._is('from') || this._is('of') || this._is('in')) this._next();
+      const obj = this._consumeIdent();
+      return { type: 'reflectDelete', obj, prop };
+    }
+    return null;
+  }
+
+  // Shorthand: "reflectget 'name' from obj into value"
+  _parseReflectGet() {
+    this._consume('reflectget');
+    const prop = this._parseValue();
+    if (this._is('from') || this._is('of')) this._next();
+    const obj = this._consumeIdent();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'reflectGet', obj, prop, out };
+  }
+
+  // Shorthand: "reflectset 'name' on obj to 'value'"
+  _parseReflectSet() {
+    this._consume('reflectset');
+    const prop = this._parseValue();
+    if (this._is('on') || this._is('of') || this._is('in')) this._next();
+    const obj = this._consumeIdent();
+    if (this._is('to')) this._next();
+    const value = this._parseValue();
+    return { type: 'reflectSet', obj, prop, value };
+  }
+
+  // Shorthand: "reflecthas 'name' in obj into result"
+  _parseReflectHas() {
+    this._consume('reflecthas');
+    const prop = this._parseValue();
+    if (this._is('in') || this._is('on') || this._is('of')) this._next();
+    const obj = this._consumeIdent();
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'reflectHas', obj, prop, out };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INTL FORMATTING PARSERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // "formatdate myDate with locale 'en-US' into formatted"
+  _parseFormatDate() {
+    this._consume('formatdate');
+    const dateVar = this._consumeIdent();
+    let locale = 'en-US', options = {};
+    if (this._is('with') || this._is('using')) {
+      this._next();
+      if (this._is('locale')) {
+        this._next();
+        const locVal = this._parseValue();
+        locale = locVal.value || locVal;
+      }
+    }
+    if (this._is('as') || this._is('style')) {
+      this._next();
+      const style = this._consumeIdent(); // 'short', 'medium', 'long', 'full'
+      options.dateStyle = style;
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'formatDate', dateVar, locale, options, out };
+  }
+
+  // "formatnumber value with locale 'en-US' into formatted"
+  _parseFormatNumber() {
+    this._consume('formatnumber');
+    const value = this._parseValue();
+    let locale = 'en-US', options = {};
+    if (this._is('with') || this._is('using')) {
+      this._next();
+      if (this._is('locale')) {
+        this._next();
+        const locVal = this._parseValue();
+        locale = locVal.value || locVal;
+      }
+    }
+    if (this._is('as') || this._is('style')) {
+      this._next();
+      const style = this._consumeIdent(); // 'decimal', 'percent', 'currency'
+      options.style = style;
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'formatNumber', value, locale, options, out };
+  }
+
+  // "currency value as 'USD' with locale 'en-US' into formatted"
+  _parseCurrency() {
+    this._consume('currency');
+    const value = this._parseValue();
+    let currencyCode = 'USD', locale = 'en-US';
+    if (this._is('as') || this._is('in')) {
+      this._next();
+      const cc = this._parseValue();
+      currencyCode = cc.value || cc;
+    }
+    if (this._is('with') || this._is('using')) {
+      this._next();
+      if (this._is('locale')) this._next();
+      const loc = this._parseValue();
+      locale = loc.value || loc;
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'currency', value, currencyCode, locale, out };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -5594,6 +6066,289 @@ class HLInterpreter {
           // No tag function, just resolve the template
           w._vars[stmt.out] = template;
         }
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // PROMISE API
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'promise': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        if (stmt.action === 'resolve') {
+          w._vars[stmt.out] = Promise.resolve(value);
+        } else if (stmt.action === 'reject') {
+          w._vars[stmt.out] = Promise.reject(value);
+        }
+        break;
+      }
+
+      case 'promiseAll': {
+        if (!w) break;
+        const promises = w._vars[stmt.promises] || [];
+        w._vars[stmt.out] = await Promise.all(promises);
+        break;
+      }
+
+      case 'promiseRace': {
+        if (!w) break;
+        const promises = w._vars[stmt.promises] || [];
+        w._vars[stmt.out] = await Promise.race(promises);
+        break;
+      }
+
+      case 'promiseAllSettled': {
+        if (!w) break;
+        const promises = w._vars[stmt.promises] || [];
+        w._vars[stmt.out] = await Promise.allSettled(promises);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // OBJECT METHODS
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'freezeObj': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj];
+        if (obj && typeof obj === 'object') Object.freeze(obj);
+        break;
+      }
+
+      case 'sealObj': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj];
+        if (obj && typeof obj === 'object') Object.seal(obj);
+        break;
+      }
+
+      case 'objectIs': {
+        if (!w) break;
+        const a = this._resolveValue(stmt.a);
+        const b = this._resolveValue(stmt.b);
+        w._vars[stmt.out] = Object.is(a, b);
+        break;
+      }
+
+      case 'fromPairs': {
+        if (!w) break;
+        const entries = w._vars[stmt.entries] || [];
+        w._vars[stmt.out] = Object.fromEntries(entries);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // ARRAY METHODS
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'arrayFrom': {
+        if (!w) break;
+        const iterable = w._vars[stmt.iterable];
+        w._vars[stmt.out] = Array.from(iterable || []);
+        break;
+      }
+
+      case 'isArray': {
+        if (!w) break;
+        const value = w._vars[stmt.value];
+        w._vars[stmt.out] = Array.isArray(value);
+        break;
+      }
+
+      case 'flatMap': {
+        if (!w) break;
+        const arr = w._vars[stmt.arr] || [];
+        const fn = w._vars[stmt.fn] || this._functions.get(stmt.fn);
+        if (typeof fn === 'function') {
+          w._vars[stmt.out] = arr.flatMap(fn);
+        } else if (fn && fn.body) {
+          // User-defined function
+          const results = [];
+          for (const item of arr) {
+            const localVars = { ...w._vars };
+            if (fn.params && fn.params.length > 0) localVars[fn.params[0]] = item;
+            const savedVars = { ...w._vars };
+            w._vars = localVars;
+            await this._executeBody(fn.body);
+            if (w._vars._returnValue !== undefined) {
+              const val = w._vars._returnValue;
+              if (Array.isArray(val)) results.push(...val);
+              else results.push(val);
+              delete w._vars._returnValue;
+            }
+            w._vars = savedVars;
+          }
+          w._vars[stmt.out] = results;
+        } else {
+          w._vars[stmt.out] = arr.flat();
+        }
+        break;
+      }
+
+      case 'fillArray': {
+        if (!w) break;
+        const arr = w._vars[stmt.arr] || [];
+        const value = this._resolveValue(stmt.value);
+        const start = stmt.start ? this._resolveValue(stmt.start) : undefined;
+        const end = stmt.end ? this._resolveValue(stmt.end) : undefined;
+        arr.fill(value, start, end);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // DATE/TIME
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'dateCreate': {
+        if (!w) break;
+        if (stmt.dateValue) {
+          const val = this._resolveValue(stmt.dateValue);
+          w._vars[stmt.out] = new Date(val);
+        } else {
+          w._vars[stmt.out] = new Date();
+        }
+        break;
+      }
+
+      case 'now': {
+        if (!w) break;
+        w._vars[stmt.out] = Date.now();
+        break;
+      }
+
+      case 'timestamp': {
+        if (!w) break;
+        if (stmt.dateVar) {
+          const date = w._vars[stmt.dateVar];
+          w._vars[stmt.out] = date instanceof Date ? date.getTime() : Date.now();
+        } else {
+          w._vars[stmt.out] = Date.now();
+        }
+        break;
+      }
+
+      case 'toISO': {
+        if (!w) break;
+        const date = w._vars[stmt.dateVar];
+        w._vars[stmt.out] = date instanceof Date ? date.toISOString() : new Date().toISOString();
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // TYPED ARRAYS
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'typedArray': {
+        if (!w) break;
+        const TypedArrayConstructor = {
+          'Uint8Array': Uint8Array,
+          'Int32Array': Int32Array,
+          'Float64Array': Float64Array,
+          'Uint16Array': Uint16Array,
+          'Int8Array': Int8Array,
+          'Int16Array': Int16Array,
+          'Uint32Array': Uint32Array,
+          'Float32Array': Float32Array,
+        }[stmt.arrayType] || Uint8Array;
+        if (stmt.source) {
+          const src = this._resolveValue(stmt.source);
+          w._vars[stmt.out] = new TypedArrayConstructor(src);
+        } else if (stmt.size) {
+          const size = this._resolveValue(stmt.size);
+          w._vars[stmt.out] = new TypedArrayConstructor(size);
+        } else {
+          w._vars[stmt.out] = new TypedArrayConstructor(0);
+        }
+        break;
+      }
+
+      case 'arrayBuffer': {
+        if (!w) break;
+        const size = this._resolveValue(stmt.size);
+        w._vars[stmt.out] = new ArrayBuffer(size);
+        break;
+      }
+
+      case 'dataView': {
+        if (!w) break;
+        const buffer = w._vars[stmt.buffer];
+        const offset = stmt.offset ? this._resolveValue(stmt.offset) : 0;
+        const length = stmt.length ? this._resolveValue(stmt.length) : undefined;
+        if (buffer instanceof ArrayBuffer) {
+          w._vars[stmt.out] = new DataView(buffer, offset, length);
+        }
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // REFLECT API
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'reflectGet': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj];
+        const prop = this._resolveValue(stmt.prop);
+        w._vars[stmt.out] = Reflect.get(obj || {}, prop);
+        break;
+      }
+
+      case 'reflectSet': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj];
+        const prop = this._resolveValue(stmt.prop);
+        const value = this._resolveValue(stmt.value);
+        Reflect.set(obj || {}, prop, value);
+        break;
+      }
+
+      case 'reflectHas': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj];
+        const prop = this._resolveValue(stmt.prop);
+        w._vars[stmt.out] = Reflect.has(obj || {}, prop);
+        break;
+      }
+
+      case 'reflectDelete': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj];
+        const prop = this._resolveValue(stmt.prop);
+        Reflect.deleteProperty(obj || {}, prop);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // INTL FORMATTING
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'formatDate': {
+        if (!w) break;
+        const date = w._vars[stmt.dateVar];
+        const locale = stmt.locale || 'en-US';
+        const options = stmt.options || {};
+        const formatter = new Intl.DateTimeFormat(locale, options);
+        w._vars[stmt.out] = formatter.format(date instanceof Date ? date : new Date(date));
+        break;
+      }
+
+      case 'formatNumber': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        const locale = stmt.locale || 'en-US';
+        const options = stmt.options || {};
+        const formatter = new Intl.NumberFormat(locale, options);
+        w._vars[stmt.out] = formatter.format(value);
+        break;
+      }
+
+      case 'currency': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        const currencyCode = stmt.currencyCode || 'USD';
+        const locale = stmt.locale || 'en-US';
+        const formatter = new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode });
+        w._vars[stmt.out] = formatter.format(value);
         break;
       }
     }
