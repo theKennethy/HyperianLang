@@ -309,6 +309,27 @@ send html "<html><body><h1>Hello</h1></body></html>"
 send css "body { background: blue; }"
 ```
 
+### Content-Type Auto-Detection
+
+HyperianLang automatically detects content types:
+
+| Content Starts With | Detected As |
+|---------------------|-------------|
+| `<!DOCTYPE` or `<html` | text/html |
+| `<` with closing tags | text/html |
+| `{` or `[` | application/json |
+| CSS patterns (`.class {`, `body {`) | text/css |
+| Other strings | text/plain |
+| Objects/Arrays | application/json |
+
+You can also force a content type:
+
+```hyperianlang
+send html "<h1>Hello</h1>"        # Forces text/html
+send css "body { color: red; }"   # Forces text/css
+respond with "data" as json       # Forces application/json
+```
+
 ### Serving Static Files
 
 ```hyperianlang
@@ -353,6 +374,114 @@ When serving files, the following MIME types are auto-detected:
 | .svg | image/svg+xml |
 | .ico | image/x-icon |
 | .txt | text/plain |
+
+---
+
+## Using with Electron
+
+HyperianLang works seamlessly with Electron for building desktop applications.
+
+### Quick Setup
+
+```bash
+mkdir my-electron-app && cd my-electron-app
+npm init -y
+npm install electron --save-dev
+```
+
+### main.js (Electron Main Process)
+
+```javascript
+const { app, BrowserWindow } = require('electron');
+const { HyperianLang } = require('./core.js');
+const path = require('path');
+
+let mainWindow;
+
+app.whenReady().then(async () => {
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  // Run HyperianLang code in the main process
+  const hl = new HyperianLang();
+  hl.load(`
+    log "Electron app started!"
+    set appName to "My HyperianLang App"
+  `);
+  await hl.run();
+
+  mainWindow.loadFile('index.html');
+});
+```
+
+### index.html (Renderer)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>HyperianLang Electron App</title>
+</head>
+<body>
+  <h1>HyperianLang Desktop App</h1>
+  <div id="output"></div>
+  
+  <script>
+    const { HyperianLang } = require('./core.js');
+    
+    const hl = new HyperianLang();
+    hl.load(`
+      set greeting to "Hello from HyperianLang!"
+      log greeting
+    `);
+    hl.run();
+  </script>
+</body>
+</html>
+```
+
+### package.json
+
+```json
+{
+  "name": "hyperianlang-electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  }
+}
+```
+
+### Running Your Electron App
+
+```bash
+npm start
+```
+
+### Electron + HTTP Server
+
+You can even run HyperianLang's HTTP server inside Electron:
+
+```javascript
+// In main.js
+const hl = new HyperianLang();
+hl.load(`
+  when the server receives a "GET" request to "/" then
+    respond with { status: "ok", app: "electron" }
+  end
+  start the server on port 3000
+`);
+await hl.run();
+
+// Now localhost:3000 is accessible from the Electron app
+mainWindow.loadURL('http://localhost:3000');
+```
 
 ---
 
