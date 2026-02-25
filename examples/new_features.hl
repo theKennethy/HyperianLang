@@ -1,0 +1,88 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// HyperianLang New Features Demo
+// Showcasing English-readable syntax
+// ═══════════════════════════════════════════════════════════════════════════
+
+say "=== ARRAY FEATURES ==="
+
+// Setup
+set unsorted to [5, 2, 8, 1, 9]
+
+// Sorted copy (non-mutating)
+sorted copy of unsorted into sortedArr
+say "Original: {unsorted}"
+say "Sorted copy: {sortedArr}"
+
+// Reversed copy (non-mutating)
+reversed copy of sortedArr into backwards
+say "Reversed: {backwards}"
+
+say ""
+say "=== MATH FEATURES ==="
+
+// Cube root
+cuberoot of 27 into cube
+say "Cube root of 27: {cube}"
+
+// Truncate (remove decimals)
+truncate 7.89 into truncated
+say "Truncate 7.89: {truncated}"
+
+// Logarithms
+logarithm base 2 of 8 into log2val
+say "Log base 2 of 8: {log2val}"
+
+logarithm base 10 of 1000 into log10val
+say "Log base 10 of 1000: {log10val}"
+
+// Hyperbolic functions
+sine hyperbolic 1 into sinhVal
+cosine hyperbolic 1 into coshVal
+tangent hyperbolic 1 into tanhVal
+say "sinh(1): {sinhVal}"
+say "cosh(1): {coshVal}"
+say "tanh(1): {tanhVal}"
+
+say ""
+say "=== CONSOLE FEATURES ==="
+
+// Console table
+set users to [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]
+table users
+
+// Console group
+group "Grouped Output"
+say "This is inside a group"
+say "More grouped content"
+groupend
+
+// Timer
+timer start "myTimer"
+set x to 0
+repeat 1000 times
+  set x to x + 1
+end
+timer end "myTimer"
+
+say ""
+say "=== MISC FEATURES ==="
+
+// Clone object
+set original to {"a": 1, "b": [2, 3]}
+clone original into copy
+say "Original: {original}"
+say "Deep clone: {copy}"
+
+// URL parsing
+url "https://example.com/path?foo=bar" into myUrl
+say "URL created"
+
+// Text encoding
+textencode "Hello World" into bytes
+say "Encoded to bytes"
+
+textdecode bytes into decoded
+say "Decoded: {decoded}"
+
+say ""
+say "=== ALL NEW FEATURES DEMONSTRATED! ==="

@@ -1221,8 +1221,10 @@ class HLParser {
         if (this._peek(1)?.value === 'item' || this._peek(1)?.value === 'element' || this._peek(1)?.value === 'of') return this._parseLastItemEnglish();
         this._next(); return null;
       case 'first':
+        // Check for Promise.any specifically: "first of promises" or "first promises"
+        if ((this._peek(1)?.value === 'of' && this._peek(2)?.value === 'promises') || this._peek(1)?.value === 'promises') return this._parsePromiseAnyEnglish();
+        // Otherwise treat as array first item
         if (this._peek(1)?.value === 'item' || this._peek(1)?.value === 'element' || this._peek(1)?.value === 'of') return this._parseFirstItemEnglish();
-        if (this._peek(1)?.value === 'of' || this._peek(1)?.value === 'promises') return this._parsePromiseAnyEnglish();
         this._next(); return null;
       case 'sorted':
         if (this._peek(1)?.value === 'copy') return this._parseToSortedEnglish();
@@ -4659,7 +4661,7 @@ class HLParser {
     if (this._is('from')) this._next(); // consume 'from' if present
     if (this._is('right') || this._is('the')) this._next(); // consume 'right' or 'the'
     if (this._is('right')) this._next(); // consume 'right' after 'the'
-    const arr = this._consumeIdent();
+    const arr = this._parseValue(); // allow array literals or identifiers
     if (this._is('with') || this._is('using')) this._next();
     const fn = this._consumeIdent();
     let initial = null;
@@ -7405,7 +7407,8 @@ class HLInterpreter {
 
       case 'reduceRight': {
         if (!w) break;
-        const arr = w._vars[stmt.arr] || [];
+        // Handle both variable name (string) and parsed value (object like array literal)
+        const arr = typeof stmt.arr === 'string' ? (w._vars[stmt.arr] || []) : this._resolveValue(stmt.arr);
         const fn = w._vars[stmt.fn] || this._functions.get(stmt.fn);
         const initial = stmt.initial ? this._resolveValue(stmt.initial) : undefined;
         if (typeof fn === 'function') {
