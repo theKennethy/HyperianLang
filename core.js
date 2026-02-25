@@ -17,6 +17,8 @@ const _ES_KEYWORDS = new Set([
   'import', 'export', 'from', 'as',
   // async
   'await', 'async',
+  // timers
+  'after', 'interval',
 ]);
 
 const _ES_ACTIONS = new Set([
@@ -113,6 +115,8 @@ const _ES_PREPS = new Set([
   'stream', 'pipe', 'chunk', 'encoding',
   // module preps
   'module', 'export', 'exports', 'require',
+  // Map/Set preps
+  'map', 'set', 'entry', 'entries', 'size',
 ]);
 
 const _ES_COMPARISONS = new Set([
@@ -152,15 +156,44 @@ class HLLexer {
         continue;
       }
 
-      // Quoted string
+      // Quoted string (with interpolation support)
       if (ch === '"') {
         let str = '';
         this.pos++;
+        const parts = []; // For string interpolation
+        let hasInterpolation = false;
+        let currentPart = '';
+        
         while (this.pos < this.source.length && this.source[this.pos] !== '"') {
-          str += this.source[this.pos++];
+          // Check for interpolation: {varName}
+          if (this.source[this.pos] === '{') {
+            // Save current string part
+            if (currentPart) parts.push({ type: 'text', value: currentPart });
+            currentPart = '';
+            this.pos++; // skip {
+            let varName = '';
+            while (this.pos < this.source.length && this.source[this.pos] !== '}' && this.source[this.pos] !== '"') {
+              varName += this.source[this.pos++];
+            }
+            if (this.source[this.pos] === '}') {
+              this.pos++; // skip }
+              parts.push({ type: 'var', value: varName.trim() });
+              hasInterpolation = true;
+            } else {
+              currentPart += '{' + varName; // Not a valid interpolation
+            }
+          } else {
+            currentPart += this.source[this.pos++];
+          }
         }
+        if (currentPart) parts.push({ type: 'text', value: currentPart });
         this.pos++; // closing quote
-        tokens.push({ type: 'STRING', value: str });
+        
+        if (hasInterpolation) {
+          tokens.push({ type: 'INTERPOLATED_STRING', parts: parts });
+        } else {
+          tokens.push({ type: 'STRING', value: parts.map(p => p.value).join('') });
+        }
         continue;
       }
 
@@ -499,6 +532,18 @@ class HLParser {
       return { type: 'object', pairs };
     }
 
+    // Ternary conditional as value: if X then Y else Z
+    // Also supports: X then Y else Z (shorter syntax)
+    if (tok.value === 'if') {
+      this._next(); // consume 'if'
+      const condition = this._parseCondition();
+      if (this._is('then')) this._next();
+      const trueValue = this._parsePrimary();
+      if (this._is('else')) this._next();
+      const falseValue = this._parsePrimary();
+      return { type: 'ternary', condition, trueValue, falseValue };
+    }
+
     // math pi / math e / math infinity / math tau / math nan
     if (tok.value === 'math') {
       this._next();
@@ -517,6 +562,8 @@ class HLParser {
       'round','floor','ceil','abs','sqrt','power','min','max','random','sign','log','clamp',
       'uppercase','lowercase','trim','length','count','join','split','array','object',
       'index','slice','type',
+      // New: array/string methods
+      'includes','findItem','findIndex','startsWith','endsWith',
     ]);
     if (FUNC_OPS.has(tok.value)) {
       this.pos++;
@@ -541,6 +588,11 @@ class HLParser {
     }
 
     if (tok.type === 'NULL') { this._next(); return { type: 'null', value: null }; }
+    // Interpolated strings: "Hello {name}"
+    if (tok.type === 'INTERPOLATED_STRING') {
+      this._next();
+      return { type: 'interpolatedString', parts: tok.parts };
+    }
     if (tok.type === 'NUMBER' || tok.type === 'STRING' || tok.type === 'BOOLEAN') {
       this._next();
       return { type: tok.type.toLowerCase(), value: tok.value };
@@ -708,6 +760,48 @@ class HLParser {
         return { type: 'funcExpr', fn: 'object', args: ovals };
       }
 
+      // ─ includes/contains: check if array/string contains value
+      case 'includes': {
+        const haystack = this._parsePrimary();
+        if (this._is('contains') || this._is('has') || this._is('with')) this._next();
+        const needle = this._parsePrimary();
+        return { type: 'funcExpr', fn: 'includes', args: [haystack, needle] };
+      }
+
+      // ─ findItem: find first item matching condition in array
+      case 'findItem': {
+        if (this._is('in')) this._next();
+        const arr = this._parsePrimary();
+        if (this._is('where') || this._is('matching') || this._is('with')) this._next();
+        const val = this._parsePrimary();
+        return { type: 'funcExpr', fn: 'find', args: [arr, val] };
+      }
+
+      // ─ findIndex: find index of first matching item
+      case 'findIndex': {
+        if (this._is('in')) this._next();
+        const arr = this._parsePrimary();
+        if (this._is('where') || this._is('matching') || this._is('of')) this._next();
+        const val = this._parsePrimary();
+        return { type: 'funcExpr', fn: 'findIndex', args: [arr, val] };
+      }
+
+      // ─ startsWith: check if string starts with value
+      case 'startsWith': {
+        const str = this._parsePrimary();
+        if (this._is('with')) this._next();
+        const prefix = this._parsePrimary();
+        return { type: 'funcExpr', fn: 'startsWith', args: [str, prefix] };
+      }
+
+      // ─ endsWith: check if string ends with value
+      case 'endsWith': {
+        const str = this._parsePrimary();
+        if (this._is('with')) this._next();
+        const suffix = this._parsePrimary();
+        return { type: 'funcExpr', fn: 'endsWith', args: [str, suffix] };
+      }
+
       default:
         return { type: 'funcExpr', fn, args: [] };
     }
@@ -833,7 +927,6 @@ class HLParser {
       case 'run':     return this._parseRunCommand();
       case 'list':    return this._parseListFiles();
       case 'file':    return this._parseFileExists();
-      case 'create':  return this._parseCreateFolder();
       case 'type':    return this._parseTypeOf();
       case 'index':   return this._parseIndexOfStmt();
       // full JS features
@@ -853,7 +946,11 @@ class HLParser {
       case 'extname':   return this._parsePathOp();
       // server ops - English syntax
       case 'start':     if (this._peek(1)?.value === 'server' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the') return this._parseStartServer(); return null;
-      case 'create':    if (this._peek(1)?.value === 'server' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the') return this._parseCreateServer(); return this._parseCreateFolder();
+      case 'create':    
+        if (this._peek(1)?.value === 'server' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the') return this._parseCreateServer(); 
+        if (this._peek(1)?.value === 'map') return this._parseCreateMap();
+        if (this._peek(1)?.value === 'set') return this._parseCreateSet();
+        return this._parseCreateFolder();
       case 'send':      if (this._peek(1)?.value === 'response' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the' || this._peek(1)?.value === 'file' || this._peek(1)?.value === 'html' || this._peek(1)?.value === 'css') return this._parseSendResponse(); return null;
       case 'when':      if (this._peek(1)?.value === 'receiving' || this._peek(1)?.value === 'the' || this._peek(1)?.value === 'server') return this._parseWhenReceiving(); return null;
       // legacy server ops
@@ -892,6 +989,9 @@ class HLParser {
       case 'select':    return this._parseSelect();
       // Async/await
       case 'await':     return this._parseAwait();
+      // Timers (setTimeout/setInterval)
+      case 'after':     return this._parseAfter();
+      case 'interval':  return this._parseInterval();
       default: this._next(); return null;
     }
   }
@@ -1584,8 +1684,22 @@ class HLParser {
     if (this._is('game'))   { this._next(); return { type: 'deleteData', key: 'game:' + ((this._isType('STRING') || this._isType('IDENT')) ? this._consumeIdentOrString() : 'slot1') }; }
     // delete file "path"
     if (this._is('file'))  { this._next(); return { type: 'deleteFile', path: this._parseValue() }; }
-    // delete key "k" from obj
-    if (this._is('key'))   { this._next(); const key = this._parseValue(); if (this._is('from') || this._is('in')) this._next(); return { type: 'deleteObjKey', obj: this._consumeIdent(), key }; }
+    // delete key "k" from myMap (works for both Map and object)
+    if (this._is('key'))   { 
+      this._next(); 
+      const key = this._parseValue(); 
+      if (this._is('from') || this._is('in')) this._next(); 
+      const obj = this._consumeIdent();
+      return { type: 'mapDelete', mapName: obj, key }; 
+    }
+    // delete value from mySet
+    if (this._is('value')) {
+      this._next();
+      const value = this._parseValue();
+      if (this._is('from') || this._is('in')) this._next();
+      const setName = this._consumeIdent();
+      return { type: 'setDelete', setName, value };
+    }
     return null;
   }
 
@@ -1648,8 +1762,22 @@ class HLParser {
     if (this._is('member')) this._next();
     if (this._peek(1)?.value === 'to' && this._peek(2)?.value === 'party') { const memberId = this._consumeIdentOrString(); this._next(); this._next(); return { type: 'addToParty', memberId }; }
     if (this._is('item')) this._next();
-    const itemId = this._consumeIdentOrString();
+    const itemId = this._parseValue();
     let quantity = { type: 'number', value: 1 };
+    // Check for Map/Set: add X to myMap with key "foo" | add X to mySet
+    if (this._is('to')) {
+      this._next();
+      const target = this._consumeIdent();
+      // Check if it's a Map operation
+      if (this._is('with') && this._peek(1)?.value === 'key') {
+        this._next(); // consume 'with'
+        this._next(); // consume 'key'
+        const key = this._parseValue();
+        return { type: 'mapSet', mapName: target, key, value: itemId };
+      }
+      // Could be a Set add
+      return { type: 'setAdd', setName: target, value: itemId };
+    }
     if (this._is('quantity') || this._is('x') || this._isType('NUMBER')) { if (this._is('quantity') || this._is('x')) this._next(); quantity = this._parseValue(); }
     if (this._is('to')) this._next(); if (this._is('inventory')) this._next();
     return { type: 'addItem', itemId, quantity };
@@ -1925,14 +2053,15 @@ class HLParser {
       if (this._is('into')) this._next();
       return { type: 'getTimestamp', out: this._consumeIdent() };
     }
-    // get key "k" from obj into x
+    // get from map: get key "k" from myMap into x
     if (this._is('key')) {
       this._next();
       const key = this._parseValue();
       if (this._is('from') || this._is('in')) this._next();
       const obj = this._consumeIdent();
       if (this._is('into')) this._next();
-      return { type: 'getObjKey', obj, key, out: this._consumeIdent() };
+      const out = this._consumeIdent();
+      return { type: 'mapGet', mapName: obj, key, out };
     }
     // get index N from arr into x
     if (this._is('index')) {
@@ -1942,6 +2071,22 @@ class HLParser {
       const arr = this._consumeIdent();
       if (this._is('into')) this._next();
       return { type: 'getArrIndex', arr, index: idx, out: this._consumeIdent() };
+    }
+    // get size of myMap/mySet into x
+    if (this._is('size')) {
+      this._next();
+      if (this._is('of')) this._next();
+      const varName = this._consumeIdent();
+      if (this._is('into')) this._next();
+      return { type: 'getSize', varName, out: this._consumeIdent() };
+    }
+    // get entries from myMap into x (returns array of [key, value] pairs)
+    if (this._is('entries')) {
+      this._next();
+      if (this._is('from') || this._is('of')) this._next();
+      const varName = this._consumeIdent();
+      if (this._is('into')) this._next();
+      return { type: 'getEntries', varName, out: this._consumeIdent() };
     }
     return null;
   }
@@ -2044,6 +2189,22 @@ class HLParser {
     this._consume('create');
     if (this._is('folder') || this._is('directory')) this._next();
     return { type: 'createFolder', path: this._parseValue() };
+  }
+  // ── create map as myMap ─────────────────────────────────────────────────
+  _parseCreateMap() {
+    this._consume('create');
+    this._consume('map');
+    if (this._is('as')) this._next();
+    const name = this._consumeIdent();
+    return { type: 'createMap', name };
+  }
+  // ── create set as mySet ─────────────────────────────────────────────────
+  _parseCreateSet() {
+    this._consume('create');
+    this._consume('set');
+    if (this._is('as')) this._next();
+    const name = this._consumeIdent();
+    return { type: 'createSet', name };
   }
   // ── type of X into t ─────────────────────────────────────────────────────
   _parseTypeOf() {
@@ -2865,6 +3026,36 @@ class HLParser {
     }
     return { type: 'await', expr: promise, variable };
   }
+
+  // ── after X seconds do ... end ────────────────────────────────────────────
+  // setTimeout equivalent
+  _parseAfter() {
+    this._consume('after');
+    const delay = this._parseValue();
+    if (this._is('seconds') || this._is('second')) this._next();
+    if (this._is('do') || this._is('then')) this._next();
+    const body = this._parseBody(['end']);
+    if (this._is('end')) this._next();
+    return { type: 'setTimeout', delay, body };
+  }
+
+  // ── interval X seconds do ... end ─────────────────────────────────────────
+  // setInterval equivalent
+  _parseInterval() {
+    this._consume('interval');
+    let id = null;
+    // Optional: interval myTimer X seconds
+    const maybeId = this._peek();
+    if (maybeId && (maybeId.type === 'IDENT' || maybeId.type === 'PREP') && this._peek(1)?.type === 'NUMBER') {
+      id = this._consumeIdent();
+    }
+    const delay = this._parseValue();
+    if (this._is('seconds') || this._is('second')) this._next();
+    if (this._is('do') || this._is('then')) this._next();
+    const body = this._parseBody(['end']);
+    if (this._is('end')) this._next();
+    return { type: 'setInterval', delay, body, id };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2968,6 +3159,11 @@ class HLInterpreter {
   _resolveValue(valNode) {
     if (!valNode) return undefined;
     if (typeof valNode === 'string' || typeof valNode === 'number' || typeof valNode === 'boolean') return valNode;
+    // Ternary: if X then Y else Z
+    if (valNode.type === 'ternary') {
+      const condResult = this._evaluateCondition(valNode.condition);
+      return condResult ? this._resolveValue(valNode.trueValue) : this._resolveValue(valNode.falseValue);
+    }
     if (valNode.type === 'math') {
       const l = this._resolveValue(valNode.left);
       const r = this._resolveValue(valNode.right);
@@ -3011,6 +3207,12 @@ class HLInterpreter {
         case 'slice':     return Array.isArray(args[0]) ? args[0].slice(Number(args[1]), args[2] !== undefined ? Number(args[2]) : undefined) : String(args[0]).slice(Number(args[1]), args[2] !== undefined ? Number(args[2]) : undefined);
         case 'object':    { const _obj = {}; for (let i = 0; i + 1 < args.length; i += 2) _obj[String(args[i])] = args[i+1]; return _obj; }
         case 'array':     return [...args];
+        // New: array/string methods
+        case 'includes':  return Array.isArray(args[0]) ? args[0].includes(args[1]) : String(args[0]).includes(String(args[1]));
+        case 'find':      return Array.isArray(args[0]) ? (args[0].find(item => item === args[1]) ?? null) : null;
+        case 'findIndex': return Array.isArray(args[0]) ? args[0].findIndex(item => item === args[1]) : -1;
+        case 'startsWith': return String(args[0]).startsWith(String(args[1]));
+        case 'endsWith':   return String(args[0]).endsWith(String(args[1]));
         default:          return undefined;
       }
     }
@@ -3074,6 +3276,25 @@ class HLInterpreter {
         if (w) { const v = w.getProperty('player', vname); if (v !== undefined) return v; }
         return '';
       });
+    }
+    // Interpolated string: parts array with {type: 'text'/'var', value: '...'}
+    if (valNode.type === 'interpolatedString') {
+      const w = this.world;
+      return valNode.parts.map(part => {
+        if (part.type === 'text') return part.value;
+        if (part.type === 'var') {
+          const vname = part.value;
+          if (vname.includes('.')) {
+            const [entity, prop] = vname.split('.');
+            if (w) { const v = w.getProperty(entity, prop); if (v !== undefined) return v; }
+            return '';
+          }
+          if (w && w._vars && vname in w._vars) return w._vars[vname];
+          if (w) { const v = w.getProperty('player', vname); if (v !== undefined) return v; }
+          return '';
+        }
+        return '';
+      }).join('');
     }
     if (valNode.type === 'ident') {
       const w = this.world;
@@ -3615,6 +3836,34 @@ class HLInterpreter {
         w._vars[stmt.out] = Array.isArray(arr) ? (arr[idx] ?? null) : null;
         break;
       }
+      case 'getSize': {
+        if (!w) break;
+        const coll = w._vars[stmt.varName];
+        if (coll instanceof Map || coll instanceof Set) {
+          w._vars[stmt.out] = coll.size;
+        } else if (Array.isArray(coll)) {
+          w._vars[stmt.out] = coll.length;
+        } else if (typeof coll === 'string') {
+          w._vars[stmt.out] = coll.length;
+        } else {
+          w._vars[stmt.out] = 0;
+        }
+        break;
+      }
+      case 'getEntries': {
+        if (!w) break;
+        const coll = w._vars[stmt.varName];
+        if (coll instanceof Map) {
+          w._vars[stmt.out] = [...coll.entries()];
+        } else if (coll instanceof Set) {
+          w._vars[stmt.out] = [...coll.values()];
+        } else if (typeof coll === 'object' && coll !== null) {
+          w._vars[stmt.out] = Object.entries(coll);
+        } else {
+          w._vars[stmt.out] = [];
+        }
+        break;
+      }
       case 'setArrIndex': {
         if (!w) break;
         const arr = w._vars[stmt.arr];
@@ -3750,6 +3999,76 @@ class HLInterpreter {
         if (typeof require !== 'undefined') {
           const fs = require('fs');
           try { fs.mkdirSync(path, { recursive: true }); } catch(e) {}
+        }
+        break;
+      }
+
+      // ── Map operations ─────────────────────────────────────────────────────
+      case 'createMap': {
+        if (w) w._vars[stmt.name] = new Map();
+        break;
+      }
+      case 'mapSet': {
+        const map = w?._vars[stmt.mapName];
+        if (map instanceof Map) {
+          map.set(this._resolveValue(stmt.key), this._resolveValue(stmt.value));
+        }
+        break;
+      }
+      case 'mapGet': {
+        const map = w?._vars[stmt.mapName];
+        if (w) {
+          if (map instanceof Map) {
+            w._vars[stmt.out] = map.get(this._resolveValue(stmt.key)) ?? null;
+          } else if (map && typeof map === 'object') {
+            w._vars[stmt.out] = map[this._resolveValue(stmt.key)] ?? null;
+          }
+        }
+        break;
+      }
+      case 'mapDelete': {
+        const map = w?._vars[stmt.mapName];
+        const key = this._resolveValue(stmt.key);
+        if (map instanceof Map) {
+          map.delete(key);
+        } else if (map && typeof map === 'object') {
+          delete map[key];
+        }
+        break;
+      }
+      case 'mapHas': {
+        const map = w?._vars[stmt.mapName];
+        if (map instanceof Map && w) {
+          w._vars[stmt.out] = map.has(this._resolveValue(stmt.key));
+        } else if (map && typeof map === 'object' && w) {
+          w._vars[stmt.out] = Object.prototype.hasOwnProperty.call(map, this._resolveValue(stmt.key));
+        }
+        break;
+      }
+
+      // ── Set operations ─────────────────────────────────────────────────────
+      case 'createSet': {
+        if (w) w._vars[stmt.name] = new Set();
+        break;
+      }
+      case 'setAdd': {
+        const set = w?._vars[stmt.setName];
+        if (set instanceof Set) {
+          set.add(this._resolveValue(stmt.value));
+        }
+        break;
+      }
+      case 'setDelete': {
+        const set = w?._vars[stmt.setName];
+        if (set instanceof Set) {
+          set.delete(this._resolveValue(stmt.value));
+        }
+        break;
+      }
+      case 'setHas': {
+        const set = w?._vars[stmt.setName];
+        if (set instanceof Set && w) {
+          w._vars[stmt.out] = set.has(this._resolveValue(stmt.value));
         }
         break;
       }
@@ -4438,6 +4757,33 @@ class HLInterpreter {
         }
         
         if (stmt.variable && w) w._vars[stmt.variable] = result;
+        break;
+      }
+
+      // ── setTimeout: after X seconds do ... end ────────────────────────────
+      case 'setTimeout': {
+        const delay = Number(this._resolveValue(stmt.delay)) * 1000;
+        const body = stmt.body;
+        setTimeout(async () => {
+          try { await this._executeBody(body); }
+          catch (e) { if (e !== _HL_BREAK && e !== _HL_SKIP) console.error('setTimeout error:', e); }
+        }, delay);
+        break;
+      }
+
+      // ── setInterval: interval X seconds do ... end ─────────────────────────
+      case 'setInterval': {
+        const delay = Number(this._resolveValue(stmt.delay)) * 1000;
+        const body = stmt.body;
+        const intervalId = setInterval(async () => {
+          try { await this._executeBody(body); }
+          catch (e) { 
+            if (e === _HL_BREAK) clearInterval(intervalId);
+            else if (e !== _HL_SKIP) console.error('setInterval error:', e);
+          }
+        }, delay);
+        // Store interval ID in vars if specified
+        if (stmt.id && w) w._vars[stmt.id] = intervalId;
         break;
       }
     }
