@@ -73,7 +73,7 @@ const _ES_ACTIONS = new Set([
   'buffer', 'safely',
   // generators, proxies, symbols
   'generate', 'yield', 'intercept', 'trap',
-  'tag',
+  'tag', 'produce', 'emit', 'wrap', 'process', 'combine',
 ]);
 
 const _ES_PREPS = new Set([
@@ -144,6 +144,8 @@ const _ES_PREPS = new Set([
   'bigint', 'big', 'integer',
   'weakmap', 'weakset', 'weak',
   'tag', 'tagged', 'template', 'raw', 'strings', 'literal',
+  // More natural English connectors
+  'called', 'named', 'produces', 'emits', 'starting', 'wrapped',
 ]);
 
 const _ES_COMPARISONS = new Set([
@@ -1053,8 +1055,11 @@ class HLParser {
       // Generators
       case 'generator': return this._parseGenerator();
       case 'yield':     return this._parseYield();
+      case 'produce':   return this._parseYield();  // English alias for yield
+      case 'emit':      return this._parseYield();  // English alias for yield
       // Proxies
       case 'proxy':     return this._parseProxy();
+      case 'wrap':      return this._parseWrap();   // English alias for proxy
       case 'intercept': return this._parseIntercept();
       // WeakMap/WeakSet
       case 'weakmap':   return this._parseWeakMap();
@@ -1065,6 +1070,9 @@ class HLParser {
       case 'bigint':    return this._parseBigInt();
       // Tagged templates
       case 'tag':       return this._parseTaggedTemplate();
+      case 'process':   return this._parseProcess();  // English alias for tag
+      // Spread alternative
+      case 'combine':   return this._parseCombine();  // English alias for spread
       default: this._next(); return null;
     }
   }
@@ -3333,16 +3341,26 @@ class HLParser {
   }
 
   // ── define generator counter starting at 0 yields value then increase value by 1 end ──
+  // ── define generator counter with value starting at 0 do ... produce value ... end ──
+  // Also supports: generator counter starting at n as 0 do ... yield n ... end
   _parseGenerator() {
     this._consume('generator');
+    // Skip 'called' or 'named' if present
+    if (this._is('called') || this._is('named')) this._next();
     const name = this._consumeIdent();
     let initVar = null;
     let initVal = { type: 'number', value: 0 };
-    if (this._is('starting') || this._is('with')) {
+    if (this._is('with') || this._is('starting') || this._is('using')) {
       this._next();
+      // "with value starting at 0" or "starting at n as 0"
+      if (this._is('value') || this._is('counter') || this._is('index')) {
+        initVar = this._consumeIdent();
+      } else {
+        initVar = this._consumeIdent();
+      }
+      if (this._is('starting') || this._is('from') || this._is('at')) this._next();
       if (this._is('at')) this._next();
-      initVar = this._consumeIdent();
-      if (this._is('at') || this._is('as') || this._is('be')) this._next();
+      if (this._is('as') || this._is('be') || this._is('equals')) this._next();
       initVal = this._parseValue();
     }
     if (this._is('do') || this._is('then')) this._next();
@@ -3351,36 +3369,44 @@ class HLParser {
     return { type: 'defineGenerator', name, initVar, initVal, body };
   }
 
-  // ── yield value ──
+  // ── produce value ── (alternative to yield for more natural English)
+  // Also supports: yield value, emit value, generate value
   _parseYield() {
     this._consume('yield');
     const value = this._parseValue();
     return { type: 'yield', value };
   }
 
-  // ── proxy target with handler into result ──
+  // ── wrap target with handler into result ──
+  // Also supports: create proxy for target using handler into result
+  // Also supports: proxy target with handler into result
   _parseProxy() {
     this._consume('proxy');
+    // Skip 'for' or 'of' if present
+    if (this._is('for') || this._is('of')) this._next();
     const target = this._consumeIdent();
     let traps = [];
     if (this._is('with') || this._is('using')) {
       this._next();
       if (this._is('handler') || this._is('traps')) this._next();
       // Parse inline traps or reference to handler object
-      if (this._peek()?.type === 'IDENT') {
+      if (this._peek()?.type === 'IDENT' && !this._is('into')) {
         traps = [{ type: 'reference', name: this._consumeIdent() }];
       }
     }
-    if (this._is('into')) this._next();
+    if (this._is('into') || this._is('as')) this._next();
     const out = this._consumeIdent();
     return { type: 'createProxy', target, traps, out };
   }
 
-  // ── intercept get on proxyName with handler ──
+  // ── when getting property from target do ... end ──
+  // Also supports: intercept get on proxyName do ... end
+  // Also supports: on access to target do ... end
   _parseIntercept() {
     this._consume('intercept');
-    const trapType = this._consumeIdent(); // get, set, has, deleteProperty, etc.
-    if (this._is('on')) this._next();
+    const trapType = this._consumeIdent(); // get, set, has, delete, etc.
+    // Skip connecting words
+    if (this._is('on') || this._is('from') || this._is('of') || this._is('for')) this._next();
     const target = this._consumeIdent();
     if (this._is('with') || this._is('do') || this._is('then')) this._next();
     const body = this._parseBody(['end']);
@@ -3388,66 +3414,135 @@ class HLParser {
     return { type: 'interceptTrap', trapType, target, body };
   }
 
-  // ── weakmap into myWeakMap ──
+  // ── create weak map called myWeakMap ──
+  // Also supports: weakmap into myWeakMap
   _parseWeakMap() {
     this._consume('weakmap');
-    if (this._is('into')) this._next();
+    // Skip 'called' or 'named' if present
+    if (this._is('called') || this._is('named')) this._next();
+    if (this._is('into') || this._is('as')) this._next();
     const out = this._consumeIdent();
     return { type: 'createWeakMap', out };
   }
 
-  // ── weakset into myWeakSet ──
+  // ── create weak set called myWeakSet ──
+  // Also supports: weakset into myWeakSet
   _parseWeakSet() {
     this._consume('weakset');
-    if (this._is('into')) this._next();
+    // Skip 'called' or 'named' if present
+    if (this._is('called') || this._is('named')) this._next();
+    if (this._is('into') || this._is('as')) this._next();
     const out = this._consumeIdent();
     return { type: 'createWeakSet', out };
   }
 
-  // ── symbol "description" into mySymbol ──
-  // ── symbol unique into mySymbol ──
+  // ── create symbol with description "myDesc" called mySymbol ──
+  // Also supports: create unique symbol called mySymbol
+  // Also supports: symbol "description" into mySymbol
   _parseSymbol() {
     this._consume('symbol');
     let description = null;
     let isUnique = false;
-    if (this._is('unique')) {
+    // Check for 'unique' or 'global'
+    if (this._is('unique') || this._is('global') || this._is('shared')) {
       this._next();
       isUnique = true;
-    } else if (this._peek()?.type === 'STRING') {
+    }
+    // Check for 'with description'
+    if (this._is('with')) {
+      this._next();
+      if (this._is('description')) this._next();
+    }
+    // Get description if it's a string
+    if (this._peek()?.type === 'STRING') {
       description = this._next().value;
-    } else if (this._peek()?.type === 'IDENT' && !this._is('into')) {
+    } else if (this._peek()?.type === 'IDENT' && !this._is('into') && !this._is('called') && !this._is('as') && !this._is('named')) {
       description = this._consumeIdent();
     }
-    if (this._is('into')) this._next();
+    // Skip 'called', 'named', 'into', 'as'
+    if (this._is('called') || this._is('named') || this._is('into') || this._is('as')) this._next();
     const out = this._consumeIdent();
     return { type: 'createSymbol', description, isUnique, out };
   }
 
-  // ── bigint 12345678901234567890 into myBigInt ──
-  // ── bigint from value into myBigInt ──
+  // ── create big integer from "999999999" called myBigInt ──
+  // Also supports: bigint "999999999" into myBigInt
+  // Also supports: big integer 12345 into myBigInt
   _parseBigInt() {
     this._consume('bigint');
+    // Skip 'integer' if present (for "big integer")
+    if (this._is('integer')) this._next();
     let value;
-    if (this._is('from')) {
+    if (this._is('from') || this._is('of')) {
       this._next();
       value = this._parseValue();
     } else {
       value = this._parseValue();
     }
-    if (this._is('into')) this._next();
+    // Skip 'called', 'named', 'into', 'as'
+    if (this._is('called') || this._is('named') || this._is('into') || this._is('as')) this._next();
     const out = this._consumeIdent();
     return { type: 'createBigInt', value, out };
   }
 
-  // ── tag myTagFn with "Hello {name}" into result ──
+  // ── process template "Hello {name}" using myTagFn into result ──
+  // Also supports: apply myTagFn to "Hello {name}" into result
+  // Also supports: tag myTagFn with "Hello {name}" into result
   _parseTaggedTemplate() {
     this._consume('tag');
     const tagFn = this._consumeIdent();
-    if (this._is('with')) this._next();
+    // Skip connecting words
+    if (this._is('with') || this._is('to') || this._is('on')) this._next();
+    if (this._is('template')) this._next();
     const template = this._parseValue();
-    if (this._is('into')) this._next();
+    // Skip 'called', 'into', 'as'
+    if (this._is('called') || this._is('into') || this._is('as')) this._next();
     const out = this._consumeIdent();
     return { type: 'taggedTemplate', tagFn, template, out };
+  }
+
+  // English-friendly alias: "process template '...' using myTagFn into result"
+  _parseProcess() {
+    this._consume('process');
+    // Skip 'template'
+    if (this._is('template')) this._next();
+    const template = this._parseValue();
+    // Skip 'using', 'with'
+    if (this._is('using') || this._is('with')) this._next();
+    const tagFn = this._consumeIdent();
+    // Skip 'into', 'called', 'as'
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'taggedTemplate', tagFn, template, out };
+  }
+
+  // English-friendly alias: "wrap target with handler into result"
+  _parseWrap() {
+    this._consume('wrap');
+    const target = this._consumeIdent();
+    // Skip 'with', 'using'
+    if (this._is('with') || this._is('using')) this._next();
+    const handler = this._consumeIdent();
+    // Skip 'into', 'called', 'as'
+    if (this._is('into') || this._is('called') || this._is('as')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'proxy', target, handler, out };
+  }
+
+  // English-friendly alias: "combine listA and listB into mergedList"
+  _parseCombine() {
+    this._consume('combine');
+    const sources = [this._consumeIdent()];
+    // Consume additional sources separated by 'and', ',', 'with'
+    while (this._is('and') || this._is('with') || (this._peek2()?.type === 'PUNCT' && this._peek2()?.value === ',')) {
+      if (this._peek2()?.type === 'PUNCT') this._next();
+      this._next();
+      sources.push(this._consumeIdent());
+    }
+    // Skip 'into', 'as', 'called'
+    if (this._is('into') || this._is('as') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'spread', sources, out };
   }
 }
 
