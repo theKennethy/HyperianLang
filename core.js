@@ -1187,69 +1187,92 @@ class HLParser {
       case 'formatnumber': return this._parseFormatNumber();
       case 'currency':  return this._parseCurrency();
       // ═══════════════════════════════════════════════════════════════════════
-      // MISSING JS FEATURES - Promise.any
+      // PROMISE - English readable
       // ═══════════════════════════════════════════════════════════════════════
-      case 'anyof':     return this._parsePromiseAny();
-      case 'first':     return this._parsePromiseAny();  // alias
+      case 'any':
+        if (this._peek(1)?.value === 'promises' || this._peek(1)?.value === 'of') return this._parsePromiseAnyEnglish();
+        return this._parseEveryAny();
+      case 'first':
+        if (this._peek(1)?.value === 'of' || this._peek(1)?.value === 'promises') return this._parsePromiseAnyEnglish();
+        this._next(); return null;
       // ═══════════════════════════════════════════════════════════════════════
-      // MISSING JS FEATURES - Object methods
+      // OBJECT METHODS - English readable
       // ═══════════════════════════════════════════════════════════════════════
-      case 'defineprop': return this._parseDefineProperty();
+      case 'define':
+        if (this._peek(1)?.value === 'property' || this._peek(1)?.value === 'props') return this._parseDefinePropertyEnglish();
+        return this._parseDefine();
       case 'getdescriptor': return this._parseGetDescriptor();
       case 'getprototype': return this._parseGetPrototype();
       case 'setprototype': return this._parseSetPrototype();
+      case 'prototype':
+        if (this._peek(1)?.value === 'of') return this._parseGetPrototypeEnglish();
+        this._next(); return null;
       // ═══════════════════════════════════════════════════════════════════════
-      // MISSING JS FEATURES - Array methods
+      // ARRAY METHODS - English readable
       // ═══════════════════════════════════════════════════════════════════════
-      case 'reduceright': return this._parseReduceRight();
-      case 'copywithin': return this._parseCopyWithin();
-      case 'itemat':    return this._parseItemAt();
-      case 'tosorted':  return this._parseToSorted();
-      case 'toreversed': return this._parseToReversed();
+      case 'reduce':
+        if (this._peek(1)?.value === 'right') return this._parseReduceRightEnglish();
+        return this._parseReduce();
+      case 'item':
+        if (this._peek(1)?.value === 'at') return this._parseItemAtEnglish();
+        this._next(); return null;
+      case 'sorted':    return this._parseToSortedEnglish();
+      case 'reversed':  return this._parseToReversedEnglish();
       // ═══════════════════════════════════════════════════════════════════════
-      // MISSING JS FEATURES - String methods
+      // STRING METHODS - English readable
       // ═══════════════════════════════════════════════════════════════════════
-      case 'replaceall': return this._parseReplaceAll();
-      case 'charat':    return this._parseCharAtStmt();
+      case 'replace':
+        if (this._peek(1)?.value === 'all') return this._parseReplaceAllEnglish();
+        return this._parseReplaceStmt();
+      case 'character':
+        if (this._peek(1)?.value === 'at') return this._parseCharAtEnglish();
+        this._next(); return null;
       case 'normalize': return this._parseNormalize();
-      case 'localecompare': return this._parseLocaleCompare();
+      case 'compare':
+        if (this._peek(1)?.value === 'locale' || this._peek(1)?.value === 'strings') return this._parseLocaleCompareEnglish();
+        return this._parseObjectIs();
       // ═══════════════════════════════════════════════════════════════════════
-      // MISSING JS FEATURES - Number methods
+      // NUMBER METHODS - English readable
       // ═══════════════════════════════════════════════════════════════════════
-      case 'isinteger': return this._parseIsInteger();
-      case 'isfinite':  return this._parseIsFinite();
-      case 'isnan':     return this._parseIsNaN();
-      case 'parsefloat': return this._parseParseFloat();
-      case 'parseint':  return this._parseParseInt();
-      case 'tofixed':   return this._parseToFixed();
-      case 'toprecision': return this._parseToPrecision();
+      case 'is':
+        if (this._peek(1)?.value === 'integer') return this._parseIsIntegerEnglish();
+        if (this._peek(1)?.value === 'finite') return this._parseIsFiniteEnglish();
+        if (this._peek(1)?.value === 'nan' || this._peek(1)?.value === 'not') return this._parseIsNaNEnglish();
+        this._next(); return null;
+      case 'fixed':     return this._parseToFixedEnglish();
+      case 'precision': return this._parseToPrecisionEnglish();
       // ═══════════════════════════════════════════════════════════════════════
-      // MISSING JS FEATURES - Math methods
+      // MATH METHODS - English readable
       // ═══════════════════════════════════════════════════════════════════════
-      case 'trunc':     return this._parseTrunc();
-      case 'cbrt':      return this._parseCbrt();
-      case 'hypot':     return this._parseHypot();
-      case 'log2':      return this._parseLog2();
-      case 'log10':     return this._parseLog10();
-      case 'sinh':      return this._parseSinh();
-      case 'cosh':      return this._parseCosh();
-      case 'tanh':      return this._parseTanh();
+      case 'truncate':  return this._parseTruncEnglish();
+      case 'cuberoot':  return this._parseCbrtEnglish();
+      case 'distance':  return this._parseHypotEnglish();
+      case 'hypotenuse': return this._parseHypotEnglish();
+      case 'logarithm':
+        if (this._peek(1)?.value === 'base') return this._parseLogBase();
+        return this._parseLog2English();
+      case 'sine':      return this._parseSinhEnglish();
+      case 'cosine':    return this._parseCoshEnglish();
+      case 'tangent':   return this._parseTanhEnglish();
       // ═══════════════════════════════════════════════════════════════════════
-      // MISSING JS FEATURES - URL
+      // URL - already readable
       // ═══════════════════════════════════════════════════════════════════════
       case 'url':       return this._parseURL();
       case 'searchparams': return this._parseSearchParams();
+      case 'parameters': return this._parseSearchParams();  // alias
       // ═══════════════════════════════════════════════════════════════════════
-      // MISSING JS FEATURES - Console
+      // CONSOLE - English readable
       // ═══════════════════════════════════════════════════════════════════════
       case 'table':     return this._parseConsoleTable();
       case 'group':     return this._parseConsoleGroup();
       case 'groupend':  return this._parseConsoleGroupEnd();
-      case 'timestart': return this._parseConsoleTime();
-      case 'timeend':   return this._parseConsoleTimeEnd();
+      case 'timer':
+        if (this._peek(1)?.value === 'start') return this._parseConsoleTimeEnglish();
+        if (this._peek(1)?.value === 'end' || this._peek(1)?.value === 'stop') return this._parseConsoleTimeEndEnglish();
+        this._next(); return null;
       case 'assert':    return this._parseConsoleAssert();
       // ═══════════════════════════════════════════════════════════════════════
-      // MISSING JS FEATURES - Misc
+      // MISC - already readable
       // ═══════════════════════════════════════════════════════════════════════
       case 'clone':     return this._parseClone();
       case 'microtask': return this._parseMicrotask();
@@ -4565,6 +4588,312 @@ class HLParser {
     if (this._is('into') || this._is('called')) this._next();
     const out = this._consumeIdent();
     return { type: 'textDecode', bytes, encoding, out };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ENGLISH-READABLE PARSERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // "any promises into winner" or "any of promises into winner" or "first of promises into winner"
+  _parsePromiseAnyEnglish() {
+    this._next(); // consume 'any' or 'first'
+    if (this._is('of')) this._next();
+    if (this._is('promises')) this._next();
+    const promises = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'promiseAny', promises, out };
+  }
+
+  // "define property on obj 'name' with value 123"
+  _parseDefinePropertyEnglish() {
+    this._next(); // consume 'define'
+    if (this._is('property') || this._is('props')) this._next();
+    if (this._is('on')) this._next();
+    const obj = this._consumeIdent();
+    const prop = this._parseValue();
+    let descriptor = {};
+    if (this._is('with')) {
+      this._next();
+      while (!this._is('into') && !this._is('called') && this._peek()) {
+        const key = this._consumeIdent();
+        const val = this._parseValue();
+        descriptor[key] = val;
+        if (this._is('and')) this._next();
+      }
+    }
+    return { type: 'defineProperty', obj, prop, descriptor };
+  }
+
+  // "prototype of obj into proto"
+  _parseGetPrototypeEnglish() {
+    this._next(); // consume 'prototype'
+    if (this._is('of')) this._next();
+    const obj = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'getPrototype', obj, out };
+  }
+
+  // "reduce right arr with fn starting 0 into result"
+  _parseReduceRightEnglish() {
+    this._next(); // consume 'reduce'
+    this._next(); // consume 'right'
+    const arr = this._consumeIdent();
+    if (this._is('with') || this._is('using')) this._next();
+    const fn = this._consumeIdent();
+    let initial = null;
+    if (this._is('starting') || this._is('from')) {
+      this._next();
+      initial = this._parseValue();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'reduceRight', arr, fn, initial, out };
+  }
+
+  // "item at arr -1 into last"
+  _parseItemAtEnglish() {
+    this._next(); // consume 'item'
+    this._next(); // consume 'at'
+    const arr = this._consumeIdent();
+    const index = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'itemAt', arr, index, out };
+  }
+
+  // "sorted arr into sortedArr" or "sorted copy of arr into newArr"
+  _parseToSortedEnglish() {
+    this._next(); // consume 'sorted'
+    if (this._is('copy')) this._next();
+    if (this._is('of')) this._next();
+    const arr = this._consumeIdent();
+    let fn = null;
+    if (this._is('with') || this._is('using')) {
+      this._next();
+      fn = this._consumeIdent();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'toSorted', arr, fn, out };
+  }
+
+  // "reversed arr into reversedArr" or "reversed copy of arr into newArr"
+  _parseToReversedEnglish() {
+    this._next(); // consume 'reversed'
+    if (this._is('copy')) this._next();
+    if (this._is('of')) this._next();
+    const arr = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'toReversed', arr, out };
+  }
+
+  // "replace all 'old' with 'new' in str into result"
+  _parseReplaceAllEnglish() {
+    this._next(); // consume 'replace'
+    this._next(); // consume 'all'
+    const search = this._parseValue();
+    if (this._is('with')) this._next();
+    const replacement = this._parseValue();
+    if (this._is('in')) this._next();
+    const str = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'replaceAll', str, search, replacement, out };
+  }
+
+  // "character at 0 in str into char"
+  _parseCharAtEnglish() {
+    this._next(); // consume 'character'
+    this._next(); // consume 'at'
+    const index = this._parseValue();
+    if (this._is('in') || this._is('of')) this._next();
+    const str = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'charAt', str, index, out };
+  }
+
+  // "compare strings a with b into result" or "compare locale a with b into result"
+  _parseLocaleCompareEnglish() {
+    this._next(); // consume 'compare'
+    if (this._is('locale') || this._is('strings')) this._next();
+    const a = this._consumeIdent();
+    if (this._is('with') || this._is('to')) this._next();
+    const b = this._consumeIdent();
+    let locale = null;
+    if (this._is('using') || this._is('locale')) {
+      this._next();
+      if (this._is('locale')) this._next();
+      locale = this._parseValue();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'localeCompare', a, b, locale, out };
+  }
+
+  // "is integer value into result"
+  _parseIsIntegerEnglish() {
+    this._next(); // consume 'is'
+    this._next(); // consume 'integer'
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'isInteger', value, out };
+  }
+
+  // "is finite value into result"
+  _parseIsFiniteEnglish() {
+    this._next(); // consume 'is'
+    this._next(); // consume 'finite'
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'isFinite', value, out };
+  }
+
+  // "is nan value into result" or "is not a number value into result"
+  _parseIsNaNEnglish() {
+    this._next(); // consume 'is'
+    if (this._is('not')) {
+      this._next();
+      if (this._is('a')) this._next();
+      if (this._is('number')) this._next();
+    } else {
+      this._next(); // consume 'nan'
+    }
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'isNaN', value, out };
+  }
+
+  // "fixed num 2 into str"
+  _parseToFixedEnglish() {
+    this._next(); // consume 'fixed'
+    const num = this._parseValue();
+    if (this._is('to')) this._next();
+    const digits = this._parseValue();
+    if (this._is('digits') || this._is('places') || this._is('decimals')) this._next();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'toFixed', num, digits, out };
+  }
+
+  // "precision num 5 into str"
+  _parseToPrecisionEnglish() {
+    this._next(); // consume 'precision'
+    const num = this._parseValue();
+    if (this._is('to')) this._next();
+    const precision = this._parseValue();
+    if (this._is('digits')) this._next();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'toPrecision', num, precision, out };
+  }
+
+  // "truncate value into result"
+  _parseTruncEnglish() {
+    this._next(); // consume 'truncate'
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'trunc', value, out };
+  }
+
+  // "cuberoot value into result"
+  _parseCbrtEnglish() {
+    this._next(); // consume 'cuberoot'
+    if (this._is('of')) this._next();
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'cbrt', value, out };
+  }
+
+  // "distance a b into result" or "hypotenuse a b c into result"
+  _parseHypotEnglish() {
+    this._next(); // consume 'distance' or 'hypotenuse'
+    if (this._is('of') || this._is('between')) this._next();
+    const values = [];
+    while (!this._is('into') && !this._is('called') && this._peek()) {
+      values.push(this._parseValue());
+      if (this._is('and')) this._next();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'hypot', values, out };
+  }
+
+  // "logarithm base 2 of value into result" or "logarithm value into result"
+  _parseLogBase() {
+    this._next(); // consume 'logarithm'
+    this._next(); // consume 'base'
+    const base = this._parseValue();
+    if (this._is('of')) this._next();
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    if (base === 2 || base.value === 2) return { type: 'log2', value, out };
+    if (base === 10 || base.value === 10) return { type: 'log10', value, out };
+    return { type: 'log', value, base, out };
+  }
+
+  // "logarithm value into result" (defaults to log2)
+  _parseLog2English() {
+    this._next(); // consume 'logarithm'
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'log2', value, out };
+  }
+
+  // "sine hyperbolic value into result"
+  _parseSinhEnglish() {
+    this._next(); // consume 'sine'
+    if (this._is('hyperbolic') || this._is('hyp')) this._next();
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'sinh', value, out };
+  }
+
+  // "cosine hyperbolic value into result"
+  _parseCoshEnglish() {
+    this._next(); // consume 'cosine'
+    if (this._is('hyperbolic') || this._is('hyp')) this._next();
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'cosh', value, out };
+  }
+
+  // "tangent hyperbolic value into result"
+  _parseTanhEnglish() {
+    this._next(); // consume 'tangent'
+    if (this._is('hyperbolic') || this._is('hyp')) this._next();
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'tanh', value, out };
+  }
+
+  // "timer start 'label'"
+  _parseConsoleTimeEnglish() {
+    this._next(); // consume 'timer'
+    this._next(); // consume 'start'
+    const label = this._parseValue();
+    return { type: 'consoleTime', label };
+  }
+
+  // "timer end 'label'" or "timer stop 'label'"
+  _parseConsoleTimeEndEnglish() {
+    this._next(); // consume 'timer'
+    this._next(); // consume 'end' or 'stop'
+    const label = this._parseValue();
+    return { type: 'consoleTimeEnd', label };
   }
 }
 
