@@ -23,6 +23,10 @@ const _ES_KEYWORDS = new Set([
   'lambda', 'arrow',
   // destructuring
   'extract',
+  // generators
+  'generator', 'yield',
+  // advanced JS
+  'proxy', 'symbol', 'bigint', 'weakmap', 'weakset',
 ]);
 
 const _ES_ACTIONS = new Set([
@@ -67,6 +71,9 @@ const _ES_ACTIONS = new Set([
   // new features
   'spread', 'hash', 'encrypt', 'decrypt', 'encode', 'decode',
   'buffer', 'safely',
+  // generators, proxies, symbols
+  'generate', 'yield', 'intercept', 'trap',
+  'tag',
 ]);
 
 const _ES_PREPS = new Set([
@@ -130,6 +137,13 @@ const _ES_PREPS = new Set([
   'lambda', 'arrow', 'safely', 'otherwise', 'default', 'using', 'algorithm',
   'sha256', 'sha512', 'md5', 'sha1', 'hex', 'base64', 'utf8', 'binary',
   'buffer', 'crypto', 'bytes',
+  // generators/proxies/symbols
+  'generator', 'yields', 'next', 'done', 'iterator',
+  'proxy', 'target', 'handler', 'trap', 'traps',
+  'symbol', 'symbols', 'unique', 'description',
+  'bigint', 'big', 'integer',
+  'weakmap', 'weakset', 'weak',
+  'tag', 'tagged', 'template', 'raw', 'strings', 'literal',
 ]);
 
 const _ES_COMPARISONS = new Set([
@@ -1036,6 +1050,21 @@ class HLParser {
       case 'buffer':    return this._parseBuffer();
       // Safe access (optional chaining + nullish coalescing)
       case 'safely':    return this._parseSafeGet();
+      // Generators
+      case 'generator': return this._parseGenerator();
+      case 'yield':     return this._parseYield();
+      // Proxies
+      case 'proxy':     return this._parseProxy();
+      case 'intercept': return this._parseIntercept();
+      // WeakMap/WeakSet
+      case 'weakmap':   return this._parseWeakMap();
+      case 'weakset':   return this._parseWeakSet();
+      // Symbol
+      case 'symbol':    return this._parseSymbol();
+      // BigInt
+      case 'bigint':    return this._parseBigInt();
+      // Tagged templates
+      case 'tag':       return this._parseTaggedTemplate();
       default: this._next(); return null;
     }
   }
@@ -3302,6 +3331,124 @@ class HLParser {
     const out = this._consumeIdent();
     return { type: 'safeGet', source, key, defaultVal, out };
   }
+
+  // ── define generator counter starting at 0 yields value then increase value by 1 end ──
+  _parseGenerator() {
+    this._consume('generator');
+    const name = this._consumeIdent();
+    let initVar = null;
+    let initVal = { type: 'number', value: 0 };
+    if (this._is('starting') || this._is('with')) {
+      this._next();
+      if (this._is('at')) this._next();
+      initVar = this._consumeIdent();
+      if (this._is('at') || this._is('as') || this._is('be')) this._next();
+      initVal = this._parseValue();
+    }
+    if (this._is('do') || this._is('then')) this._next();
+    const body = this._parseBody(['end']);
+    if (this._is('end')) this._consume('end');
+    return { type: 'defineGenerator', name, initVar, initVal, body };
+  }
+
+  // ── yield value ──
+  _parseYield() {
+    this._consume('yield');
+    const value = this._parseValue();
+    return { type: 'yield', value };
+  }
+
+  // ── proxy target with handler into result ──
+  _parseProxy() {
+    this._consume('proxy');
+    const target = this._consumeIdent();
+    let traps = [];
+    if (this._is('with') || this._is('using')) {
+      this._next();
+      if (this._is('handler') || this._is('traps')) this._next();
+      // Parse inline traps or reference to handler object
+      if (this._peek()?.type === 'IDENT') {
+        traps = [{ type: 'reference', name: this._consumeIdent() }];
+      }
+    }
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'createProxy', target, traps, out };
+  }
+
+  // ── intercept get on proxyName with handler ──
+  _parseIntercept() {
+    this._consume('intercept');
+    const trapType = this._consumeIdent(); // get, set, has, deleteProperty, etc.
+    if (this._is('on')) this._next();
+    const target = this._consumeIdent();
+    if (this._is('with') || this._is('do') || this._is('then')) this._next();
+    const body = this._parseBody(['end']);
+    if (this._is('end')) this._consume('end');
+    return { type: 'interceptTrap', trapType, target, body };
+  }
+
+  // ── weakmap into myWeakMap ──
+  _parseWeakMap() {
+    this._consume('weakmap');
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'createWeakMap', out };
+  }
+
+  // ── weakset into myWeakSet ──
+  _parseWeakSet() {
+    this._consume('weakset');
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'createWeakSet', out };
+  }
+
+  // ── symbol "description" into mySymbol ──
+  // ── symbol unique into mySymbol ──
+  _parseSymbol() {
+    this._consume('symbol');
+    let description = null;
+    let isUnique = false;
+    if (this._is('unique')) {
+      this._next();
+      isUnique = true;
+    } else if (this._peek()?.type === 'STRING') {
+      description = this._next().value;
+    } else if (this._peek()?.type === 'IDENT' && !this._is('into')) {
+      description = this._consumeIdent();
+    }
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'createSymbol', description, isUnique, out };
+  }
+
+  // ── bigint 12345678901234567890 into myBigInt ──
+  // ── bigint from value into myBigInt ──
+  _parseBigInt() {
+    this._consume('bigint');
+    let value;
+    if (this._is('from')) {
+      this._next();
+      value = this._parseValue();
+    } else {
+      value = this._parseValue();
+    }
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'createBigInt', value, out };
+  }
+
+  // ── tag myTagFn with "Hello {name}" into result ──
+  _parseTaggedTemplate() {
+    this._consume('tag');
+    const tagFn = this._consumeIdent();
+    if (this._is('with')) this._next();
+    const template = this._parseValue();
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'taggedTemplate', tagFn, template, out };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4273,6 +4420,11 @@ class HLInterpreter {
         const map = w?._vars[stmt.mapName];
         if (map instanceof Map) {
           map.set(this._resolveValue(stmt.key), this._resolveValue(stmt.value));
+        } else if (map instanceof WeakMap) {
+          const key = this._resolveValue(stmt.key);
+          if (typeof key === 'object' && key !== null) {
+            map.set(key, this._resolveValue(stmt.value));
+          }
         }
         break;
       }
@@ -4281,6 +4433,11 @@ class HLInterpreter {
         if (w) {
           if (map instanceof Map) {
             w._vars[stmt.out] = map.get(this._resolveValue(stmt.key)) ?? null;
+          } else if (map instanceof WeakMap) {
+            const key = this._resolveValue(stmt.key);
+            if (typeof key === 'object' && key !== null) {
+              w._vars[stmt.out] = map.get(key) ?? null;
+            }
           } else if (map && typeof map === 'object') {
             w._vars[stmt.out] = map[this._resolveValue(stmt.key)] ?? null;
           }
@@ -4292,6 +4449,8 @@ class HLInterpreter {
         const key = this._resolveValue(stmt.key);
         if (map instanceof Map) {
           map.delete(key);
+        } else if (map instanceof WeakMap && typeof key === 'object' && key !== null) {
+          map.delete(key);
         } else if (map && typeof map === 'object') {
           delete map[key];
         }
@@ -4299,10 +4458,13 @@ class HLInterpreter {
       }
       case 'mapHas': {
         const map = w?._vars[stmt.mapName];
+        const key = this._resolveValue(stmt.key);
         if (map instanceof Map && w) {
-          w._vars[stmt.out] = map.has(this._resolveValue(stmt.key));
+          w._vars[stmt.out] = map.has(key);
+        } else if (map instanceof WeakMap && w && typeof key === 'object' && key !== null) {
+          w._vars[stmt.out] = map.has(key);
         } else if (map && typeof map === 'object' && w) {
-          w._vars[stmt.out] = Object.prototype.hasOwnProperty.call(map, this._resolveValue(stmt.key));
+          w._vars[stmt.out] = Object.prototype.hasOwnProperty.call(map, key);
         }
         break;
       }
@@ -4316,20 +4478,31 @@ class HLInterpreter {
         const set = w?._vars[stmt.setName];
         if (set instanceof Set) {
           set.add(this._resolveValue(stmt.value));
+        } else if (set instanceof WeakSet) {
+          const val = this._resolveValue(stmt.value);
+          if (typeof val === 'object' && val !== null) {
+            set.add(val);
+          }
         }
         break;
       }
       case 'setDelete': {
         const set = w?._vars[stmt.setName];
+        const val = this._resolveValue(stmt.value);
         if (set instanceof Set) {
-          set.delete(this._resolveValue(stmt.value));
+          set.delete(val);
+        } else if (set instanceof WeakSet && typeof val === 'object' && val !== null) {
+          set.delete(val);
         }
         break;
       }
       case 'setHas': {
         const set = w?._vars[stmt.setName];
+        const val = this._resolveValue(stmt.value);
         if (set instanceof Set && w) {
-          w._vars[stmt.out] = set.has(this._resolveValue(stmt.value));
+          w._vars[stmt.out] = set.has(val);
+        } else if (set instanceof WeakSet && w && typeof val === 'object' && val !== null) {
+          w._vars[stmt.out] = set.has(val);
         }
         break;
       }
@@ -5216,6 +5389,116 @@ class HLInterpreter {
           result = defaultVal;
         }
         w._vars[stmt.out] = result;
+        break;
+      }
+
+      case 'defineGenerator': {
+        if (!w) break;
+        // Store generator definition for later instantiation
+        w._vars[stmt.name] = {
+          __isGenerator: true,
+          initVar: stmt.initVar,
+          initVal: stmt.initVal,
+          body: stmt.body
+        };
+        break;
+      }
+
+      case 'yield': {
+        // Yield is handled specially inside generator execution
+        const value = this._resolveValue(stmt.value);
+        const err = new Error('__hlYield');
+        err.__hlYield = true;
+        err.value = value;
+        throw err;
+      }
+
+      case 'createProxy': {
+        if (!w) break;
+        const target = w._vars[stmt.target] || {};
+        const handler = {};
+        // If traps reference a handler object
+        if (stmt.traps.length && stmt.traps[0].type === 'reference') {
+          const handlerObj = w._vars[stmt.traps[0].name] || {};
+          Object.assign(handler, handlerObj);
+        }
+        w._vars[stmt.out] = new Proxy(target, handler);
+        break;
+      }
+
+      case 'interceptTrap': {
+        if (!w) break;
+        // Store trap definition for use with proxy
+        const trapDef = {
+          trapType: stmt.trapType,
+          body: stmt.body,
+          interpreter: this
+        };
+        if (!w._vars['__traps']) w._vars['__traps'] = {};
+        if (!w._vars['__traps'][stmt.target]) w._vars['__traps'][stmt.target] = {};
+        w._vars['__traps'][stmt.target][stmt.trapType] = trapDef;
+        break;
+      }
+
+      case 'createWeakMap': {
+        if (!w) break;
+        w._vars[stmt.out] = new WeakMap();
+        break;
+      }
+
+      case 'createWeakSet': {
+        if (!w) break;
+        w._vars[stmt.out] = new WeakSet();
+        break;
+      }
+
+      case 'createSymbol': {
+        if (!w) break;
+        if (stmt.isUnique) {
+          // Symbol.for creates a global/unique symbol
+          w._vars[stmt.out] = Symbol.for(stmt.description || stmt.out);
+        } else {
+          w._vars[stmt.out] = Symbol(stmt.description || '');
+        }
+        break;
+      }
+
+      case 'createBigInt': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        try {
+          w._vars[stmt.out] = BigInt(value);
+        } catch (e) {
+          w._vars[stmt.out] = BigInt(0);
+        }
+        break;
+      }
+
+      case 'taggedTemplate': {
+        if (!w) break;
+        const tagFn = w._vars[stmt.tagFn];
+        const template = this._resolveValue(stmt.template);
+        if (typeof tagFn === 'function') {
+          // Call the tag function with strings array and values
+          // For simplicity, treat as single string template
+          if (template && template.parts) {
+            const strings = [];
+            const values = [];
+            for (const part of template.parts) {
+              if (part.type === 'text') strings.push(part.value);
+              else if (part.type === 'var') values.push(w._vars[part.value]);
+            }
+            // Ensure strings has one more element than values
+            if (strings.length <= values.length) strings.push('');
+            strings.raw = [...strings];
+            w._vars[stmt.out] = tagFn(strings, ...values);
+          } else {
+            w._vars[stmt.out] = tagFn([String(template)], ...[]);
+          }
+        } else {
+          // No tag function, just resolve the template
+          w._vars[stmt.out] = template;
+        }
         break;
       }
     }
