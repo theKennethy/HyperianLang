@@ -48,6 +48,8 @@ const _ES_KEYWORDS = new Set([
   'heading', 'paragraph', 'link', 'image', 'button', 'input', 'form', 'label', 'textarea', 'select', 'option',
   'table', 'row', 'cell', 'list', 'item', 'script', 'style', 'meta', 'title',
   'ordered', 'unordered', 'stylesheet', 'charset', 'viewport',
+  'container', 'box', 'navigation', 'sidebar', 'maincontent', 'bulletlist', 'numberedlist', 'listitem',
+  'pageheader', 'pagefooter', 'ul', 'ol', 'li',
   // HTML elements - English names
   'break', 'line', 'bold', 'strong', 'italic', 'emphasis', 'code', 'preformatted', 'quote', 'blockquote',
   'video', 'audio', 'iframe', 'canvas', 'svg', 'summary',
@@ -311,7 +313,7 @@ class HLLexer {
         continue;
       }
 
-      // Quoted string (with interpolation support)
+      // Quoted string (with interpolation support using ${varName} syntax and escape sequences)
       if (ch === '"') {
         let str = '';
         this.pos++;
@@ -319,13 +321,29 @@ class HLLexer {
         let hasInterpolation = false;
         let currentPart = '';
         
-        while (this.pos < this.source.length && this.source[this.pos] !== '"') {
-          // Check for interpolation: {varName}
-          if (this.source[this.pos] === '{') {
+        while (this.pos < this.source.length) {
+          const c = this.source[this.pos];
+          // Handle escape sequences
+          if (c === '\\' && this.pos + 1 < this.source.length) {
+            const next = this.source[this.pos + 1];
+            if (next === '"') { currentPart += '"'; this.pos += 2; continue; }
+            if (next === '\\') { currentPart += '\\'; this.pos += 2; continue; }
+            if (next === 'n') { currentPart += '\n'; this.pos += 2; continue; }
+            if (next === 't') { currentPart += '\t'; this.pos += 2; continue; }
+            if (next === 'r') { currentPart += '\r'; this.pos += 2; continue; }
+            // Not a recognized escape, keep backslash
+            currentPart += c;
+            this.pos++;
+            continue;
+          }
+          // End of string
+          if (c === '"') break;
+          // Check for interpolation: ${varName}
+          if (c === '$' && this.source[this.pos + 1] === '{') {
             // Save current string part
             if (currentPart) parts.push({ type: 'text', value: currentPart });
             currentPart = '';
-            this.pos++; // skip {
+            this.pos += 2; // skip ${
             let varName = '';
             while (this.pos < this.source.length && this.source[this.pos] !== '}' && this.source[this.pos] !== '"') {
               varName += this.source[this.pos++];
@@ -335,7 +353,7 @@ class HLLexer {
               parts.push({ type: 'var', value: varName.trim() });
               hasInterpolation = true;
             } else {
-              currentPart += '{' + varName; // Not a valid interpolation
+              currentPart += '${' + varName; // Not a valid interpolation
             }
           } else {
             currentPart += this.source[this.pos++];
@@ -5588,7 +5606,7 @@ class HLParser {
       return { type: 'htmlStyle', content: this._parseValue() };
     }
     
-    // html link stylesheet "styles.css" / html link to "url" with text "label"
+    // html link stylesheet "styles.css" / html link to "url" with text "label" / html link "href" "text"
     if (tok.value === 'link') {
       this._next();
       if (this._is('stylesheet')) {
@@ -5597,7 +5615,16 @@ class HLParser {
       }
       // Regular link (anchor)
       let href = null, text = null;
-      if (this._is('to')) { this._next(); href = this._parseValue(); }
+      if (this._is('to')) { 
+        this._next(); 
+        href = this._parseValue(); 
+      } else if (this._peek()?.type === 'STRING') {
+        // Simple syntax: html link "href" "text"
+        href = this._parseValue();
+        if (this._peek()?.type === 'STRING') {
+          text = this._parseValue();
+        }
+      }
       const attrs = this._parseHtmlAttrs();
       if (this._is('with') && this._peek(1)?.value === 'text') {
         this._next(); this._next();
@@ -5611,12 +5638,17 @@ class HLParser {
       return { type: 'htmlLink', href, text, attrs, out };
     }
     
-    // html script "code" / html script file "script.js"
+    // html script "code" / html script file "script.js" / html script block ... end script
     if (tok.value === 'script') {
       this._next();
       if (this._is('file') || this._is('from')) {
         this._next();
         return { type: 'htmlScriptSrc', src: this._parseValue() };
+      }
+      // Check for client-side script block
+      if (this._is('block') || this._is('begin') || (this._peek()?.type !== 'STRING')) {
+        if (this._is('block') || this._is('begin')) this._next();
+        return this._parseClientScriptBlock();
       }
       return { type: 'htmlScript', content: this._parseValue() };
     }
@@ -6418,7 +6450,529 @@ class HLParser {
       return { type: 'htmlAddress', attrs, body, out };
     }
     
+    // html div ... end div  (generic container)
+    if (tok.value === 'div' || tok.value === 'container' || tok.value === 'box') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('div') || this._is('container') || this._is('box')) this._next(); }
+      return { type: 'htmlDiv', attrs, body, out };
+    }
+    
+    // html section ... end section
+    if (tok.value === 'section') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('section')) this._next(); }
+      return { type: 'htmlSection', attrs, body, out };
+    }
+    
+    // html article ... end article
+    if (tok.value === 'article') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('article')) this._next(); }
+      return { type: 'htmlArticle', attrs, body, out };
+    }
+    
+    // html nav ... end nav
+    if (tok.value === 'nav' || tok.value === 'navigation') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('nav') || this._is('navigation')) this._next(); }
+      return { type: 'htmlNav', attrs, body, out };
+    }
+    
+    // html header ... end header
+    if (tok.value === 'header' || tok.value === 'pageheader') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('header') || this._is('pageheader')) this._next(); }
+      return { type: 'htmlHeader', attrs, body, out };
+    }
+    
+    // html footer ... end footer
+    if (tok.value === 'footer' || tok.value === 'pagefooter') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('footer') || this._is('pagefooter')) this._next(); }
+      return { type: 'htmlFooter', attrs, body, out };
+    }
+    
+    // html aside ... end aside (sidebar)
+    if (tok.value === 'aside' || tok.value === 'sidebar') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('aside') || this._is('sidebar')) this._next(); }
+      return { type: 'htmlAside', attrs, body, out };
+    }
+    
+    // html main ... end main
+    if (tok.value === 'main' || tok.value === 'maincontent') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('main') || this._is('maincontent')) this._next(); }
+      return { type: 'htmlMain', attrs, body, out };
+    }
+    
+    // html unordered ... end unordered (ul)
+    if (tok.value === 'unordered' || tok.value === 'ul' || tok.value === 'bulletlist') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('unordered') || this._is('ul') || this._is('bulletlist')) this._next(); }
+      return { type: 'htmlUl', attrs, body, out };
+    }
+    
+    // html ordered ... end ordered (ol)
+    if (tok.value === 'ordered' || tok.value === 'ol' || tok.value === 'numberedlist') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('ordered') || this._is('ol') || this._is('numberedlist')) this._next(); }
+      return { type: 'htmlOl', attrs, body, out };
+    }
+    
+    // html item "text" (li)
+    if (tok.value === 'item' || tok.value === 'li' || tok.value === 'listitem') {
+      this._next();
+      let text = null;
+      if (this._peek()?.type === 'STRING') text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      let body = null;
+      // Check if it has a body (for nested content)
+      if (!this._is('end') && !this._is('item') && !this._is('li') && this._peek() && this._peek().value === 'html') {
+        body = this._parseBody(['end', 'item', 'li', 'listitem']);
+        if (this._is('end')) { this._next(); if (this._is('item') || this._is('li') || this._is('listitem')) this._next(); }
+      } else if (this._is('into') || this._is('called')) {
+        this._next(); out = this._consumeIdent();
+      }
+      return { type: 'htmlLi', text, attrs, body, out };
+    }
+    
     throw new Error(`HLParser: Unknown HTML element "${tok.value}"`);
+  }
+  
+  // Parse client-side script block in HyperianLang syntax
+  // Syntax: html script block ... end script
+  _parseClientScriptBlock() {
+    const statements = [];
+    
+    while (!this._isEndTag('script') && this._peek()) {
+      const stmt = this._parseClientStatement();
+      if (stmt) statements.push(stmt);
+    }
+    
+    if (this._isEndTag('script')) { this._next(); this._next(); }
+    
+    return { type: 'htmlClientScript', statements };
+  }
+  
+  // Parse a single client-side statement
+  _parseClientStatement() {
+    const tok = this._peek();
+    if (!tok) return null;
+    
+    // Skip comments
+    if (tok.type === 'COMMENT') { this._next(); return null; }
+    
+    // define function NAME ... end function
+    // define async function NAME ... end function
+    if (this._is('define') || this._is('function') || this._is('create')) {
+      if (this._is('define') || this._is('create')) this._next();
+      let isAsync = false;
+      if (this._is('async')) { this._next(); isAsync = true; }
+      if (this._is('function') || this._is('action')) this._next();
+      const name = this._consumeIdent();
+      const params = [];
+      if (this._is('with') || this._is('using') || this._is('taking')) {
+        this._next();
+        if (this._is('parameter') || this._is('parameters') || this._is('param') || this._is('params')) this._next();
+        params.push(this._consumeIdent());
+        while (this._is('and') || this._is(',')) {
+          this._next();
+          params.push(this._consumeIdent());
+        }
+      }
+      const body = [];
+      while (!this._isEndTag('function') && !this._isEndTag('action') && this._peek()) {
+        const stmt = this._parseClientStatement();
+        if (stmt) body.push(stmt);
+      }
+      if (this._isEndTag('function') || this._isEndTag('action')) { this._next(); this._next(); }
+      return { type: 'clientFunction', name, params, body, isAsync };
+    }
+    
+    // when PAGE loaded / when ELEMENT clicked / when FORM submitted
+    if (this._is('when') || this._is('on')) {
+      this._next();
+      let target = null;
+      let event = null;
+      
+      if (this._is('page') || this._is('document')) {
+        this._next();
+        if (this._is('loaded') || this._is('loads') || this._is('ready')) {
+          this._next();
+          event = 'DOMContentLoaded';
+          target = 'document';
+        }
+      } else if (this._is('hash') || this._is('url')) {
+        this._next();
+        if (this._is('changes') || this._is('changed')) {
+          this._next();
+          event = 'hashchange';
+          target = 'window';
+        }
+      } else {
+        // Element event: when "selector" clicked / when form submitted
+        if (this._peek()?.type === 'STRING') {
+          target = this._parseValue();
+        } else {
+          target = this._consumeIdent();
+        }
+        if (this._is('is')) this._next();
+        if (this._is('clicked') || this._is('click')) { this._next(); event = 'click'; }
+        else if (this._is('submitted') || this._is('submit')) { this._next(); event = 'submit'; }
+        else if (this._is('changed') || this._is('change')) { this._next(); event = 'change'; }
+        else if (this._is('input')) { this._next(); event = 'input'; }
+      }
+      
+      if (this._is('then')) this._next();
+      
+      const body = [];
+      while (!this._isEndTag('when') && !this._isEndTag('on') && this._peek()) {
+        const stmt = this._parseClientStatement();
+        if (stmt) body.push(stmt);
+      }
+      if (this._isEndTag('when') || this._isEndTag('on')) { this._next(); this._next(); }
+      
+      return { type: 'clientEvent', target, event, body };
+    }
+    
+    // set VARIABLE to VALUE / set ELEMENT property to VALUE
+    if (this._is('set')) {
+      this._next();
+      const target = this._consumeIdent();
+      
+      // set element text/html/display/value
+      if (this._is('text') || this._is('html') || this._is('display') || this._is('value') || this._is('content')) {
+        const prop = this._next().value;
+        if (this._is('to')) this._next();
+        const value = this._parseClientValue();
+        return { type: 'clientSetProp', target, prop, value };
+      }
+      
+      if (this._is('to')) this._next();
+      const value = this._parseClientValue();
+      return { type: 'clientSetVar', name: target, value };
+    }
+    
+    // select "selector" into VAR / select all "selector" into VAR
+    if (this._is('select') || this._is('get') || this._is('find')) {
+      this._next();
+      let all = false;
+      if (this._is('all') || this._is('every')) { this._next(); all = true; }
+      if (this._is('element') || this._is('elements')) this._next();
+      if (this._is('matching') || this._is('with')) this._next();
+      const selector = this._parseClientValue();
+      let out = null;
+      if (this._is('into') || this._is('as') || this._is('called')) {
+        this._next();
+        out = this._consumeIdent();
+      }
+      return { type: 'clientSelect', selector, all, out };
+    }
+    
+    // hide ELEMENT / show ELEMENT
+    if (this._is('hide')) {
+      this._next();
+      if (this._is('element')) this._next();
+      const target = this._consumeIdent();
+      return { type: 'clientHide', target };
+    }
+    if (this._is('show')) {
+      this._next();
+      if (this._is('element')) this._next();
+      const target = this._consumeIdent();
+      return { type: 'clientShow', target };
+    }
+    
+    // call FUNCTION / call FUNCTION with ARGS
+    if (this._is('call') || this._is('run') || this._is('execute')) {
+      this._next();
+      if (this._is('function')) this._next();
+      const name = this._consumeIdent();
+      const args = [];
+      if (this._is('with') || this._is('using') || this._is('passing')) {
+        this._next();
+        args.push(this._parseClientValue());
+        while (this._is('and') || this._is(',')) {
+          this._next();
+          args.push(this._parseClientValue());
+        }
+      }
+      return { type: 'clientCall', name, args };
+    }
+    
+    // fetch URL into VAR
+    if (this._is('fetch') || this._is('request')) {
+      this._next();
+      if (this._is('from')) this._next();
+      const url = this._parseValue();
+      let method = 'GET';
+      let bodyData = null;
+      if (this._is('with') || this._is('using')) {
+        this._next();
+        if (this._is('method')) { this._next(); method = this._parseValue(); }
+        if (this._is('post') || this._is('POST')) { this._next(); method = 'POST'; }
+        if (this._is('body') || this._is('data')) {
+          this._next();
+          bodyData = this._parseClientValue();
+        }
+      }
+      let out = null;
+      if (this._is('into') || this._is('as')) {
+        this._next();
+        out = this._consumeIdent();
+      }
+      return { type: 'clientFetch', url, method, body: bodyData, out };
+    }
+    
+    // for each ITEM in COLLECTION ... end for
+    if (this._is('for')) {
+      this._next();
+      if (this._is('each') || this._is('every')) this._next();
+      const itemVar = this._consumeIdent();
+      if (this._is('in') || this._is('of')) this._next();
+      const collection = this._parseClientValue();
+      const body = [];
+      while (!this._isEndTag('for') && this._peek()) {
+        const stmt = this._parseClientStatement();
+        if (stmt) body.push(stmt);
+      }
+      if (this._isEndTag('for')) { this._next(); this._next(); }
+      return { type: 'clientForEach', itemVar, collection, body };
+    }
+    
+    // if CONDITION then ... end if
+    if (this._is('if')) {
+      this._next();
+      const left = this._parseClientValue();
+      let op = 'equals';
+      let right = { type: 'boolean', value: true };
+      if (this._is('equals') || this._is('is') || this._is('==')) {
+        this._next();
+        op = 'equals';
+        right = this._parseClientValue();
+      } else if (this._is('not')) {
+        this._next();
+        op = 'notEquals';
+        right = this._parseClientValue();
+      }
+      if (this._is('then')) this._next();
+      const body = [];
+      while (!this._isEndTag('if') && !this._is('else') && this._peek()) {
+        const stmt = this._parseClientStatement();
+        if (stmt) body.push(stmt);
+      }
+      let elseBody = [];
+      if (this._is('else')) {
+        this._next();
+        while (!this._isEndTag('if') && this._peek()) {
+          const stmt = this._parseClientStatement();
+          if (stmt) elseBody.push(stmt);
+        }
+      }
+      if (this._isEndTag('if')) { this._next(); this._next(); }
+      return { type: 'clientIf', left, op, right, body, elseBody };
+    }
+    
+    // try ... catch ... end try
+    if (this._is('try')) {
+      this._next();
+      const tryBody = [];
+      while (!this._is('catch') && !this._isEndTag('try') && this._peek()) {
+        const stmt = this._parseClientStatement();
+        if (stmt) tryBody.push(stmt);
+      }
+      let catchBody = [];
+      let errorVar = 'error';
+      if (this._is('catch')) {
+        this._next();
+        if (this._peek()?.type === 'IDENT' && !this._is('end')) {
+          errorVar = this._consumeIdent();
+        }
+        while (!this._isEndTag('try') && this._peek()) {
+          const stmt = this._parseClientStatement();
+          if (stmt) catchBody.push(stmt);
+        }
+      }
+      if (this._isEndTag('try')) { this._next(); this._next(); }
+      return { type: 'clientTry', tryBody, catchBody, errorVar };
+    }
+    
+    // await EXPRESSION
+    if (this._is('await') || this._is('wait')) {
+      this._next();
+      if (this._is('for')) this._next();
+      const value = this._parseClientValue();
+      let out = null;
+      if (this._is('into') || this._is('as')) {
+        this._next();
+        out = this._consumeIdent();
+      }
+      return { type: 'clientAwait', value, out };
+    }
+    
+    // prevent default
+    if (this._is('prevent')) {
+      this._next();
+      if (this._is('default')) this._next();
+      return { type: 'clientPreventDefault' };
+    }
+    
+    // alert MESSAGE / log MESSAGE
+    if (this._is('alert')) {
+      this._next();
+      const message = this._parseClientValue();
+      return { type: 'clientAlert', message };
+    }
+    if (this._is('log')) {
+      this._next();
+      const message = this._parseClientValue();
+      return { type: 'clientLog', message };
+    }
+    
+    // delay/wait MILLISECONDS
+    if (this._is('delay') || this._is('pause')) {
+      this._next();
+      if (this._is('for')) this._next();
+      const ms = this._parseValue();
+      if (this._is('milliseconds') || this._is('ms')) this._next();
+      if (this._is('seconds') || this._is('second')) { this._next(); /* ms is actually seconds */ }
+      if (this._is('then')) this._next();
+      const body = [];
+      while (!this._isEndTag('delay') && !this._isEndTag('pause') && this._peek() && !this._is('end')) {
+        const stmt = this._parseClientStatement();
+        if (stmt) body.push(stmt);
+      }
+      if (this._is('end')) {
+        this._next();
+        if (this._is('delay') || this._is('pause')) this._next();
+      }
+      return { type: 'clientDelay', ms, body };
+    }
+    
+    // return VALUE
+    if (this._is('return')) {
+      this._next();
+      let value = null;
+      if (this._peek() && !this._is('end')) {
+        value = this._parseClientValue();
+      }
+      return { type: 'clientReturn', value };
+    }
+    
+    // Skip unknown tokens
+    this._next();
+    return null;
+  }
+  
+  // Parse a client-side value expression
+  _parseClientValue() {
+    const tok = this._peek();
+    if (!tok) return null;
+    
+    // String literal
+    if (tok.type === 'STRING') {
+      let str = { type: 'string', value: this._next().value };
+      // Check for string concatenation: "text" joined with VAR
+      if (this._is('joined') || this._is('plus') || this._is('concatenated') || this._is('+')) {
+        this._next();
+        if (this._is('with') || this._is('to')) this._next();
+        const right = this._parseClientValue();
+        return { type: 'concat', left: str, right };
+      }
+      return str;
+    }
+    
+    // Number literal
+    if (tok.type === 'NUMBER') {
+      return { type: 'number', value: this._next().value };
+    }
+    
+    // Boolean
+    if (this._is('true') || this._is('yes')) {
+      this._next();
+      return { type: 'boolean', value: true };
+    }
+    if (this._is('false') || this._is('no')) {
+      this._next();
+      return { type: 'boolean', value: false };
+    }
+    
+    // Property access: VAR property PROP / VAR.property
+    // Also handle keywords/actions that can be used as variable names (like 'error')
+    if (tok.type === 'IDENT' || tok.type === 'KEYWORD' || tok.type === 'ACTION') {
+      let name = this._consumeIdent();
+      
+      // Check for property chain: data property x property y
+      while (this._is('property') || this._is('attribute') || this._peek()?.value === '.') {
+        if (this._peek()?.value === '.') {
+          this._next(); // skip .
+          name += '.' + this._consumeIdent();
+        } else {
+          this._next(); // skip 'property'/'attribute'
+          name += '.' + this._consumeIdent();
+        }
+      }
+      
+      // Check for method call
+      if (this._is('json')) {
+        this._next();
+        return { type: 'methodCall', object: name, method: 'json', args: [] };
+      }
+      
+      // String concatenation: VAR joined with VALUE / VAR + VALUE
+      if (this._is('joined') || this._is('plus') || this._is('concatenated') || this._is('+')) {
+        this._next();
+        if (this._is('with') || this._is('to')) this._next();
+        const right = this._parseClientValue();
+        return { type: 'concat', left: { type: 'variable', name }, right };
+      }
+      
+      return { type: 'variable', name };
+    }
+    
+    return null;
   }
   
   // Parse HTML attributes: with class "x" and id "y" ...
@@ -6484,6 +7038,14 @@ class HLParser {
       if (this._is('srcset')) { this._next(); attrs.srcset = this._parseValue(); continue; }
       if (this._is('usemap')) { this._next(); attrs.usemap = this._parseValue(); continue; }
       if (this._is('cite')) { this._next(); attrs.cite = this._parseValue(); continue; }
+      // Event handlers
+      if (this._is('onclick')) { this._next(); attrs.onclick = this._parseValue(); continue; }
+      if (this._is('onchange')) { this._next(); attrs.onchange = this._parseValue(); continue; }
+      if (this._is('onsubmit')) { this._next(); attrs.onsubmit = this._parseValue(); continue; }
+      if (this._is('onload')) { this._next(); attrs.onload = this._parseValue(); continue; }
+      if (this._is('oninput')) { this._next(); attrs.oninput = this._parseValue(); continue; }
+      if (this._is('onfocus')) { this._next(); attrs.onfocus = this._parseValue(); continue; }
+      if (this._is('onblur')) { this._next(); attrs.onblur = this._parseValue(); continue; }
       // Generic attribute: "attr value"
       const attrName = this._consumeIdent();
       const attrVal = this._parseValue();
@@ -6571,13 +7133,13 @@ class HLParser {
       return { type: 'cssInline', selector, properties, out };
     }
     
-    // css class "className" ... end class
+    // css class "className" ... end class / end rule
     if (this._is('class')) {
       this._next();
       const className = this._parseValue();
       const properties = [];
       
-      while (!this._isEndTag('class') && this._peek()) {
+      while (!this._isEndTag('class') && !this._isEndTag('rule') && this._peek()) {
         if (this._is('use') || this._is('property') || this._is('prop')) {
           this._next();
           const prop = this._consumeIdent();
@@ -6595,7 +7157,7 @@ class HLParser {
           break;
         }
       }
-      if (this._isEndTag('class')) { this._next(); this._next(); }
+      if (this._isEndTag('class') || this._isEndTag('rule')) { this._next(); this._next(); }
       return { type: 'cssClass', className, properties };
     }
     
@@ -10727,6 +11289,14 @@ class HLInterpreter {
         break;
       }
       
+      case 'htmlClientScript': {
+        if (!w) break;
+        const jsCode = this._generateClientJS(stmt.statements);
+        const html = `<script>\n${jsCode}\n</script>`;
+        this._appendHtml(w, html);
+        break;
+      }
+      
       case 'htmlScriptSrc': {
         if (!w) break;
         const src = this._resolveValue(stmt.src);
@@ -11657,6 +12227,174 @@ class HLInterpreter {
         break;
       }
       
+      case 'htmlDiv': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const parentContent = w._htmlContainerContent;
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        w._htmlContainerContent = parentContent;
+        const html = `<div${this._renderAttrs(attrs)}>\n${content}\n</div>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlSection': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const parentContent = w._htmlContainerContent;
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        w._htmlContainerContent = parentContent;
+        const html = `<section${this._renderAttrs(attrs)}>\n${content}\n</section>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlArticle': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const parentContent = w._htmlContainerContent;
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        w._htmlContainerContent = parentContent;
+        const html = `<article${this._renderAttrs(attrs)}>\n${content}\n</article>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlNav': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const parentContent = w._htmlContainerContent;
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        w._htmlContainerContent = parentContent;
+        const html = `<nav${this._renderAttrs(attrs)}>\n${content}\n</nav>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlHeader': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const parentContent = w._htmlContainerContent;
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        w._htmlContainerContent = parentContent;
+        const html = `<header${this._renderAttrs(attrs)}>\n${content}\n</header>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlFooter': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const parentContent = w._htmlContainerContent;
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        w._htmlContainerContent = parentContent;
+        const html = `<footer${this._renderAttrs(attrs)}>\n${content}\n</footer>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlAside': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const parentContent = w._htmlContainerContent;
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        w._htmlContainerContent = parentContent;
+        const html = `<aside${this._renderAttrs(attrs)}>\n${content}\n</aside>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlMain': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const parentContent = w._htmlContainerContent;
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        w._htmlContainerContent = parentContent;
+        const html = `<main${this._renderAttrs(attrs)}>\n${content}\n</main>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlUl': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const parentContent = w._htmlContainerContent;
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        w._htmlContainerContent = parentContent;
+        const html = `<ul${this._renderAttrs(attrs)}>\n${content}\n</ul>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlOl': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const parentContent = w._htmlContainerContent;
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        w._htmlContainerContent = parentContent;
+        const html = `<ol${this._renderAttrs(attrs)}>\n${content}\n</ol>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlLi': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        let content = stmt.text ? this._escapeHtml(this._resolveValue(stmt.text)) : '';
+        if (stmt.body) {
+          const parentContent = w._htmlContainerContent;
+          const savedContent = [];
+          w._htmlContainerContent = savedContent;
+          await this._executeBody(stmt.body);
+          content = savedContent.join('\n');
+          w._htmlContainerContent = parentContent;
+        }
+        const html = `<li${this._renderAttrs(attrs)}>${content}</li>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
       case 'render': {
         if (!w) break;
         // Get the HTML content from the source variable
@@ -11888,6 +12626,7 @@ class HLInterpreter {
       'borderstyle': 'border-style',
       'borderradius': 'border-radius',
       'boxshadow': 'box-shadow',
+      'boxsizing': 'box-sizing',
       'textshadow': 'text-shadow',
       'display': 'display',
       'position': 'position',
@@ -11984,6 +12723,214 @@ class HLInterpreter {
   _getCssOutput(w) {
     if (!w._cssOutput) return '';
     return w._cssOutput.join('\n\n');
+  }
+  
+  // Client JS Generator: Convert HyperianLang client AST to JavaScript
+  _generateClientJS(statements, indent = 0) {
+    const pad = '  '.repeat(indent);
+    const lines = [];
+    
+    for (const stmt of statements) {
+      if (!stmt) continue;
+      
+      switch (stmt.type) {
+        case 'clientFunction': {
+          const asyncKeyword = stmt.isAsync ? 'async ' : '';
+          const params = stmt.params.join(', ');
+          lines.push(`${pad}${asyncKeyword}function ${stmt.name}(${params}) {`);
+          lines.push(this._generateClientJS(stmt.body, indent + 1));
+          lines.push(`${pad}}`);
+          break;
+        }
+        
+        case 'clientEvent': {
+          const target = stmt.target === 'document' ? 'document' : 
+                         stmt.target === 'window' ? 'window' :
+                         `document.getElementById('${stmt.target}')`;
+          lines.push(`${pad}${target}.addEventListener('${stmt.event}', async (e) => {`);
+          lines.push(this._generateClientJS(stmt.body, indent + 1));
+          lines.push(`${pad}});`);
+          break;
+        }
+        
+        case 'clientSetVar': {
+          const value = this._generateClientValue(stmt.value);
+          lines.push(`${pad}let ${stmt.name} = ${value};`);
+          break;
+        }
+        
+        case 'clientSetProp': {
+          const value = this._generateClientValue(stmt.value);
+          const propMap = {
+            'text': 'textContent',
+            'content': 'textContent',
+            'html': 'innerHTML',
+            'display': 'style.display',
+            'value': 'value'
+          };
+          const jsProp = propMap[stmt.prop] || stmt.prop;
+          lines.push(`${pad}${stmt.target}.${jsProp} = ${value};`);
+          break;
+        }
+        
+        case 'clientSelect': {
+          const method = stmt.all ? 'querySelectorAll' : 'querySelector';
+          const selector = this._generateClientValue(stmt.selector);
+          if (stmt.out) {
+            lines.push(`${pad}let ${stmt.out} = document.${method}(${selector});`);
+          } else {
+            lines.push(`${pad}document.${method}(${selector});`);
+          }
+          break;
+        }
+        
+        case 'clientHide': {
+          lines.push(`${pad}${stmt.target}.style.display = 'none';`);
+          break;
+        }
+        
+        case 'clientShow': {
+          lines.push(`${pad}${stmt.target}.style.display = 'block';`);
+          break;
+        }
+        
+        case 'clientCall': {
+          const args = stmt.args.map(a => this._generateClientValue(a)).join(', ');
+          lines.push(`${pad}${stmt.name}(${args});`);
+          break;
+        }
+        
+        case 'clientFetch': {
+          const url = this._generateClientValue(stmt.url);
+          if (stmt.method === 'GET' && !stmt.body) {
+            if (stmt.out) {
+              lines.push(`${pad}let ${stmt.out} = await fetch(${url}).then(r => r.json());`);
+            } else {
+              lines.push(`${pad}await fetch(${url});`);
+            }
+          } else {
+            const bodyJS = stmt.body ? this._generateClientValue(stmt.body) : 'null';
+            lines.push(`${pad}let _fetchRes = await fetch(${url}, {`);
+            lines.push(`${pad}  method: '${stmt.method}',`);
+            lines.push(`${pad}  headers: {'Content-Type': 'application/json'},`);
+            lines.push(`${pad}  body: JSON.stringify(${bodyJS})`);
+            lines.push(`${pad}});`);
+            if (stmt.out) {
+              lines.push(`${pad}let ${stmt.out} = await _fetchRes.json();`);
+            }
+          }
+          break;
+        }
+        
+        case 'clientForEach': {
+          const collection = this._generateClientValue(stmt.collection);
+          lines.push(`${pad}for (const ${stmt.itemVar} of ${collection}) {`);
+          lines.push(this._generateClientJS(stmt.body, indent + 1));
+          lines.push(`${pad}}`);
+          break;
+        }
+        
+        case 'clientIf': {
+          const left = this._generateClientValue(stmt.left);
+          const right = this._generateClientValue(stmt.right);
+          const op = stmt.op === 'equals' ? '===' : '!==';
+          lines.push(`${pad}if (${left} ${op} ${right}) {`);
+          lines.push(this._generateClientJS(stmt.body, indent + 1));
+          if (stmt.elseBody && stmt.elseBody.length > 0) {
+            lines.push(`${pad}} else {`);
+            lines.push(this._generateClientJS(stmt.elseBody, indent + 1));
+          }
+          lines.push(`${pad}}`);
+          break;
+        }
+        
+        case 'clientTry': {
+          lines.push(`${pad}try {`);
+          lines.push(this._generateClientJS(stmt.tryBody, indent + 1));
+          lines.push(`${pad}} catch (${stmt.errorVar}) {`);
+          lines.push(this._generateClientJS(stmt.catchBody, indent + 1));
+          lines.push(`${pad}}`);
+          break;
+        }
+        
+        case 'clientAwait': {
+          const value = this._generateClientValue(stmt.value);
+          if (stmt.out) {
+            lines.push(`${pad}let ${stmt.out} = await ${value};`);
+          } else {
+            lines.push(`${pad}await ${value};`);
+          }
+          break;
+        }
+        
+        case 'clientPreventDefault': {
+          lines.push(`${pad}e.preventDefault();`);
+          break;
+        }
+        
+        case 'clientAlert': {
+          const msg = this._generateClientValue(stmt.message);
+          lines.push(`${pad}alert(${msg});`);
+          break;
+        }
+        
+        case 'clientLog': {
+          const msg = this._generateClientValue(stmt.message);
+          lines.push(`${pad}console.log(${msg});`);
+          break;
+        }
+        
+        case 'clientDelay': {
+          const ms = typeof stmt.ms === 'object' ? this._generateClientValue(stmt.ms) : stmt.ms;
+          if (stmt.body && stmt.body.length > 0) {
+            lines.push(`${pad}setTimeout(() => {`);
+            lines.push(this._generateClientJS(stmt.body, indent + 1));
+            lines.push(`${pad}}, ${ms});`);
+          } else {
+            lines.push(`${pad}await new Promise(r => setTimeout(r, ${ms}));`);
+          }
+          break;
+        }
+        
+        case 'clientReturn': {
+          if (stmt.value) {
+            const value = this._generateClientValue(stmt.value);
+            lines.push(`${pad}return ${value};`);
+          } else {
+            lines.push(`${pad}return;`);
+          }
+          break;
+        }
+      }
+    }
+    
+    return lines.join('\n');
+  }
+  
+  // Client JS Generator: Convert a value node to JavaScript expression
+  _generateClientValue(valueNode) {
+    if (!valueNode) return 'null';
+    if (typeof valueNode === 'string') return `'${valueNode}'`;
+    if (typeof valueNode === 'number') return String(valueNode);
+    if (typeof valueNode === 'boolean') return String(valueNode);
+    
+    switch (valueNode.type) {
+      case 'string':
+        return `'${valueNode.value}'`;
+      case 'number':
+        return String(valueNode.value);
+      case 'boolean':
+        return String(valueNode.value);
+      case 'variable':
+        return valueNode.name;
+      case 'concat':
+        return `${this._generateClientValue(valueNode.left)} + ${this._generateClientValue(valueNode.right)}`;
+      case 'methodCall':
+        const args = (valueNode.args || []).map(a => this._generateClientValue(a)).join(', ');
+        return `${valueNode.object}.${valueNode.method}(${args})`;
+      default:
+        return 'null';
+    }
   }
   
   // HTML Helper: Escape HTML special characters

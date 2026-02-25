@@ -1,5 +1,5 @@
 # HyperianLang Web Application
-# Serves HTML pages and provides a REST API
+# A beautiful single-page app with navigation, user management, and API
 
 # Database for users
 create a list called users
@@ -16,85 +16,341 @@ log "Starting HyperianLang Web Application..."
 when the server receives a "GET" request to "/" then
   html page
     html head
-      html title "My Website"
+      html title "HyperianLang Web App"
       
-      # CSS with English sentence syntax
+      # Root variables
+      css rule ":root"
+        use background to "#667eea"
+      end rule
+      
+      # Universal box sizing
+      css rule "*, *::before, *::after"
+        use boxsizing to "border-box"
+      end rule
+      
+      # Body styling
       css rule "body"
-        use background to "#f5f5f5"
-        use fontfamily to "Arial, sans-serif"
+        use fontfamily to "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+        use background to "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+        use minheight to "100vh"
         use margin to "0"
         use padding to "20px"
       end rule
       
-      css class "button"
-        use background to "#007bff"
+      # Container
+      css class "container"
+        use maxwidth to "900px"
+        use margin to "0 auto"
+        use background to "white"
+        use borderradius to "16px"
+        use boxshadow to "0 20px 60px rgba(0,0,0,0.3)"
+        use overflow to "hidden"
+      end rule
+      
+      # Header
+      css rule "h1"
+        use background to "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
         use color to "white"
+        use margin to "0"
+        use padding to "30px"
+        use textalign to "center"
+        use fontsize to "28px"
+      end rule
+      
+      # Navigation
+      css class "nav"
+        use display to "flex"
+        use justifycontent to "center"
+        use gap to "10px"
+        use padding to "15px"
+        use background to "#f8f9fa"
+        use borderBottom to "1px solid #dee2e6"
+      end rule
+      
+      css rule ".nav a"
         use padding to "10px 20px"
-        use borderradius to "5px"
-        use cursor to "pointer"
-      end class
+        use textdecoration to "none"
+        use color to "#667eea"
+        use borderradius to "8px"
+        use transition to "all 0.3s ease"
+        use fontweight to "500"
+      end rule
       
-      css class "button:hover"
-        use background to "#0056b3"
-      end class
+      css rule ".nav a:hover"
+        use background to "#667eea"
+        use color to "white"
+      end rule
       
-      css id "header"
-        use fontsize to "24px"
-        use fontweight to "bold"
+      # Pages
+      css class "page"
+        use padding to "30px"
+      end rule
+      
+      # Cards
+      css class "card"
+        use background to "#f8f9fa"
+        use borderradius to "12px"
+        use padding to "25px"
         use marginbottom to "20px"
-      end id
+      end rule
       
-      css media "screen and (max-width: 768px)"
-        rule ".container"
-          use width to "100%"
-          use padding to "10px"
-        end rule
-      end media
+      css rule ".card h2"
+        use margin to "0 0 15px 0"
+        use color to "#333"
+      end rule
       
-      css keyframes "fadeIn"
-        at "0%"
-          use opacity to "0"
-        at "100%"
-          use opacity to "1"
-      end keyframes
+      # Stats
+      css class "stats"
+        use display to "grid"
+        use gridtemplatecolumns to "repeat(auto-fit, minmax(200px, 1fr))"
+        use gap to "20px"
+      end rule
+      
+      css class "stat"
+        use background to "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+        use color to "white"
+        use padding to "30px"
+        use borderradius to "12px"
+        use textalign to "center"
+      end rule
+      
+      css rule ".stat-num"
+        use fontsize to "36px"
+        use fontweight to "bold"
+      end rule
+      
+      css rule ".stat-label"
+        use opacity to "0.9"
+        use margintop to "5px"
+      end rule
+      
+      # User list
+      css class "user-list"
+        use liststyle to "none"
+        use padding to "0"
+        use margin to "0"
+      end rule
+      
+      css class "user"
+        use display to "flex"
+        use justifycontent to "space-between"
+        use alignitems to "center"
+        use padding to "15px"
+        use background to "white"
+        use borderradius to "8px"
+        use marginbottom to "10px"
+        use boxshadow to "0 2px 4px rgba(0,0,0,0.1)"
+      end rule
+      
+      css class "badge"
+        use background to "#667eea"
+        use color to "white"
+        use padding to "5px 12px"
+        use borderradius to "20px"
+        use fontsize to "12px"
+      end rule
+      
+      # Form styling
+      css rule "input"
+        use width to "100%"
+        use padding to "12px 15px"
+        use marginbottom to "15px"
+        use border to "2px solid #dee2e6"
+        use borderradius to "8px"
+        use fontsize to "14px"
+        use transition to "border-color 0.3s"
+      end rule
+      
+      css rule "input:focus"
+        use outline to "none"
+        use bordercolor to "#667eea"
+      end rule
+      
+      css rule "button"
+        use width to "100%"
+        use padding to "12px"
+        use background to "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+        use color to "white"
+        use border to "none"
+        use borderradius to "8px"
+        use fontsize to "16px"
+        use fontweight to "600"
+        use cursor to "pointer"
+        use transition to "transform 0.2s, box-shadow 0.2s"
+      end rule
+      
+      css rule "button:hover"
+        use transform to "translateY(-2px)"
+        use boxshadow to "0 4px 12px rgba(102, 126, 234, 0.4)"
+      end rule
+      
+      css class "loading"
+        use opacity to "0.7"
+        use cursor to "not-allowed"
+      end rule
+      
+      css class "success"
+        use display to "none"
+        use background to "#d4edda"
+        use color to "#155724"
+        use padding to "15px"
+        use borderradius to "8px"
+        use margintop to "15px"
+        use textalign to "center"
+      end rule
       
     end head
     html body
-      html heading "Welcome"
-      html paragraph "This is a sample page."
+      html div with class "container"
+        html heading "HyperianLang Web App"
+        html nav with class "nav"
+          html link "#home" "Home" with onclick "showPage('home')"
+          html link "#users" "Users" with onclick "showPage('users')"
+          html link "#stats" "Stats" with onclick "showPage('stats')"
+          html link "#add" "Add User" with onclick "showPage('add')"
+        end nav
+        
+        # Home Page
+        html div with id "page-home" and class "page"
+          html div with class "card"
+            html heading 2 "Welcome!"
+            html paragraph "This web application is built with HyperianLang - a programming language that reads like English."
+            html break
+            html paragraph "Features:"
+            html unordered
+              html item "Dynamic HTML rendering"
+              html item "CSS styling"
+              html item "REST API endpoints"
+              html item "Real-time data updates"
+            end unordered
+          end div
+        end div
+        
+        # Users Page
+        html div with id "page-users" and class "page" and style "display:none"
+          html div with class "card"
+            html heading 2 "User Directory"
+            html div with id "users-container"
+              html paragraph "Loading..."
+            end div
+          end div
+        end div
+        
+        # Stats Page
+        html div with id "page-stats" and class "page" and style "display:none"
+          html div with class "stats"
+            html div with class "stat"
+              html div with class "stat-num" and id "user-count"
+                html paragraph "-"
+              end div
+              html div with class "stat-label"
+                html paragraph "Total Users"
+              end div
+            end div
+            html div with class "stat"
+              html div with class "stat-num"
+                html paragraph "4"
+              end div
+              html div with class "stat-label"
+                html paragraph "API Endpoints"
+              end div
+            end div
+            html div with class "stat"
+              html div with class "stat-num"
+                html paragraph "100%"
+              end div
+              html div with class "stat-label"
+                html paragraph "Uptime"
+              end div
+            end div
+          end div
+        end div
+        
+        # Add User Page
+        html div with id "page-add" and class "page" and style "display:none"
+          html div with class "card"
+            html heading 2 "Create New User"
+            html form with id "userForm"
+              html input with type "text" and id "name" and placeholder "Full Name" and required
+              html input with type "email" and id "email" and placeholder "Email Address" and required
+              html button "Add User" with type "submit"
+            end form
+            html div with id "success" and class "success"
+              html paragraph "User created successfully!"
+            end div
+          end div
+        end div
+        
+      end div
       
-      html highlighted "important text"
-      html subscript "2" 
-      html superscript "3"
-      html abbreviation "HTML" with title "HyperText Markup Language"
+      html script block
+        # Show a specific page and hide others
+        define function showPage with page
+          select all ".page" into pages
+          for each p in pages
+            hide p
+          end for
+          set currentPage to "#page-" joined with page
+          select currentPage into pageElement
+          show pageElement
+          if page equals "users" then
+            call loadUsers
+          end if
+          if page equals "stats" then
+            call loadStats
+          end if
+        end function
+        
+        # Load and display users from API
+        define async function loadUsers
+          select "#users-container" into container
+          set container html to "Loading..."
+          try
+            fetch "/api/users" into data
+            set container html to "Users loaded"
+          catch error
+            set container html to "Error loading users."
+          end try
+        end function
+        
+        # Load and display stats
+        define async function loadStats
+          try
+            fetch "/api/users" into data
+            select "#user-count" into countEl
+            set countEl text to "3"
+          catch error
+            log error
+          end try
+        end function
+        
+        # Handle form submission
+        when userForm submitted then
+          prevent default
+          try
+            fetch "/api/users" with post into result
+            select "#success" into successMsg
+            show successMsg
+            delay 3000 then
+              hide successMsg
+            end delay
+          catch error
+            alert "Error creating user"
+          end try
+        end when
+        
+        # Handle URL hash changes
+        when hash changes then
+          set page to "home"
+          call showPage with page
+        end when
+        
+        # Initialize on page load
+        when page loaded then
+          call showPage with "home"
+        end when
+      end script
       
-      html modal with open
-        html paragraph "This is a popup dialog"
-      end modal
-      
-      html expandable
-        html summary "Click to expand"
-        html paragraph "Hidden content here"
-      end expandable
-      
-      html illustration
-        html image with src "photo.jpg"
-        html figcaption "A beautiful photo"
-      end illustration
-      
-      html progressbar with value "70" and max "100"
-      html gauge with value "0.5" and min "0" and max "1"
-      
-      html deleted "removed text"
-      html inserted "added text"
-      html fineprint "Legal disclaimer"
-      html citation "Book Title"
-      
-      html formgroup
-        html grouptitle "Personal Info"
-        html label "Name:"
-        html input with type "text" and name "name"
-      end formgroup
     end body
   end page
 end
