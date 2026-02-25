@@ -88,17 +88,16 @@ const _ES_ACTIONS = new Set([
   'all', 'race', 'settle', 'parallel',
   // Object methods
   'freezeobj', 'sealobj', 'compare', 'frompairs',
-  'seal', 'are', 'make', 'identical',
   // Array methods
-  'arrayfrom', 'isarray', 'flatmap', 'fillarr', 'copywithin', 'fill',
+  'arrayfrom', 'isarray', 'flatmap', 'fillarr', 'copywithin',
   // Date/Time
-  'getdate', 'gettime', 'setdate', 'settime', 'toiso', 'timestamp', 'current',
+  'getdate', 'gettime', 'setdate', 'settime', 'toiso', 'timestamp',
   // TypedArrays
-  'uint8', 'int32', 'float64', 'view', 'allocate', 'byte', 'integer', 'decimal',
+  'uint8', 'int32', 'float64', 'view',
   // Reflect API
-  'reflectget', 'reflectset', 'reflecthas', 'reflectdelete', 'dynamically',
+  'reflectget', 'reflectset', 'reflecthas', 'reflectdelete',
   // Intl
-  'formatdate', 'formatnumber', 'currency', 'localize',
+  'formatdate', 'formatnumber', 'currency',
 ]);
 
 const _ES_PREPS = new Set([
@@ -185,12 +184,8 @@ const _ES_PREPS = new Set([
   'bytes', 'view', 'offset', 'bytelength',
   // Reflect
   'reflect', 'property', 'descriptor', 'configurable', 'enumerable', 'writable',
-  'dynamically', 'dynamic',
   // Intl
   'locale', 'currency', 'style', 'notation', 'compact', 'scientific',
-  'localized', 'formatted',
-  // English helpers for new features
-  'identical', 'same', 'sealed', 'allocate', 'bytes',
 ]);
 
 const _ES_COMPARISONS = new Set([
@@ -1126,83 +1121,48 @@ class HLParser {
       case 'race':      return this._parsePromiseRace();
       case 'parallel':  return this._parsePromiseAll();  // English alias
       case 'settle':    return this._parsePromiseAllSettled();
-      case 'await':     // Check for "await all promises" pattern
-        if (this._peek(1)?.value === 'all' || this._peek(1)?.value === 'every') {
-          this._next(); // consume 'await'
-          return this._parsePromiseAll();
-        }
-        return this._parseAwait();
       // ═══════════════════════════════════════════════════════════════════════
-      // OBJECT METHODS - English readable
+      // OBJECT METHODS
       // ═══════════════════════════════════════════════════════════════════════
-      case 'freeze':
-        if (this._peek(1)?.value === 'object' || this._peek(1)?.value === 'the') return this._parseFreezeObjEnglish();
-        return this._parseFreezeUnfreeze('freeze');
-      case 'seal':      return this._parseSealObjEnglish();
       case 'freezeobj': return this._parseFreezeObj();
       case 'sealobj':   return this._parseSealObj();
       case 'compare':   return this._parseObjectIs();
-      case 'are':       // "are a and b identical into result"
-        if (this._peek(1)?.type === 'IDENT') return this._parseAreIdentical();
-        this._next(); return null;
       case 'frompairs': return this._parseFromPairs();
-      case 'make':      // "make object from pairs into result"
-        if (this._peek(1)?.value === 'object') return this._parseMakeObjectFromPairs();
-        this._next(); return null;
       // ═══════════════════════════════════════════════════════════════════════
-      // ARRAY METHODS - English readable
+      // ARRAY METHODS
       // ═══════════════════════════════════════════════════════════════════════
       case 'arrayfrom': return this._parseArrayFrom();
       case 'isarray':   return this._parseIsArray();
       case 'flatmap':   return this._parseFlatMap();
       case 'fillarr':   return this._parseFillArray();
-      case 'fill':      return this._parseFillEnglish();  // "fill array with value"
-      case 'is':        // "is value an array into result"
-        if (this._peek(2)?.value === 'array' || this._peek(2)?.value === 'an') return this._parseIsArrayEnglish();
-        this._next(); return null;
       // ═══════════════════════════════════════════════════════════════════════
-      // DATE/TIME - English readable
+      // DATE/TIME
       // ═══════════════════════════════════════════════════════════════════════
       case 'date':      return this._parseDate();
       case 'now':       return this._parseNow();
-      case 'current':   // "current time into now" or "current date into today"
-        return this._parseCurrentTime();
       case 'timestamp': return this._parseTimestamp();
       case 'toiso':     return this._parseToISO();
       // ═══════════════════════════════════════════════════════════════════════
-      // TYPED ARRAYS - English readable
+      // TYPED ARRAYS
       // ═══════════════════════════════════════════════════════════════════════
       case 'uint8':     return this._parseTypedArray('Uint8Array');
       case 'int32':     return this._parseTypedArray('Int32Array');
       case 'float64':   return this._parseTypedArray('Float64Array');
-      case 'byte':      return this._parseTypedArray('Uint8Array');  // alias
-      case 'integer':   // "integer array from [1,2,3] into arr"
-        if (this._peek(1)?.value === 'array') return this._parseTypedArrayEnglish('Int32Array');
-        this._next(); return null;
-      case 'decimal':   // "decimal array from [1.5,2.5] into arr"
-        if (this._peek(1)?.value === 'array') return this._parseTypedArrayEnglish('Float64Array');
-        this._next(); return null;
       case 'arraybuffer': return this._parseArrayBuffer();
-      case 'allocate':  // "allocate 16 bytes into buffer"
-        return this._parseAllocateBuffer();
       case 'view':      return this._parseDataView();
       // ═══════════════════════════════════════════════════════════════════════
-      // REFLECT API - English readable
+      // REFLECT API
       // ═══════════════════════════════════════════════════════════════════════
       case 'reflect':   return this._parseReflect();
       case 'reflectget': return this._parseReflectGet();
       case 'reflectset': return this._parseReflectSet();
       case 'reflecthas': return this._parseReflectHas();
-      case 'dynamically': // "dynamically get/set/check property"
-        return this._parseDynamically();
       // ═══════════════════════════════════════════════════════════════════════
-      // INTL FORMATTING - English readable
+      // INTL FORMATTING
       // ═══════════════════════════════════════════════════════════════════════
       case 'formatdate': return this._parseFormatDate();
       case 'formatnumber': return this._parseFormatNumber();
       case 'currency':  return this._parseCurrency();
-      case 'localize':  // "localize date/number with locale into result"
-        return this._parseLocalize();
       default: this._next(); return null;
     }
   }
@@ -4055,199 +4015,6 @@ class HLParser {
     if (this._is('into') || this._is('called')) this._next();
     const out = this._consumeIdent();
     return { type: 'currency', value, currencyCode, locale, out };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ENGLISH-READABLE PARSERS
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  // "freeze the object myObj" or "freeze object myObj"
-  _parseFreezeObjEnglish() {
-    this._consume('freeze');
-    if (this._is('the')) this._next();
-    if (this._is('object')) this._next();
-    const obj = this._consumeIdent();
-    return { type: 'freezeObj', obj };
-  }
-
-  // "seal the object myObj" or "seal object myObj"
-  _parseSealObjEnglish() {
-    this._consume('seal');
-    if (this._is('the')) this._next();
-    if (this._is('object')) this._next();
-    const obj = this._consumeIdent();
-    return { type: 'sealObj', obj };
-  }
-
-  // "are a and b identical into result"
-  _parseAreIdentical() {
-    this._consume('are');
-    const a = this._parseValue();
-    if (this._is('and')) this._next();
-    const b = this._parseValue();
-    if (this._is('identical') || this._is('equal') || this._is('the') || this._is('same')) this._next();
-    if (this._is('same')) this._next();
-    if (this._is('into') || this._is('called') || this._is('as')) this._next();
-    const out = this._consumeIdent();
-    return { type: 'objectIs', a, b, out };
-  }
-
-  // "make object from pairs into result"
-  _parseMakeObjectFromPairs() {
-    this._consume('make');
-    if (this._is('object') || this._is('an')) this._next();
-    if (this._is('object')) this._next();
-    if (this._is('from')) this._next();
-    const entries = this._consumeIdent();
-    if (this._is('into') || this._is('called') || this._is('as')) this._next();
-    const out = this._consumeIdent();
-    return { type: 'fromPairs', entries, out };
-  }
-
-  // "fill array with value" or "fill myArr with 0"
-  _parseFillEnglish() {
-    this._consume('fill');
-    if (this._is('the')) this._next();
-    if (this._is('array')) this._next();
-    const arr = this._consumeIdent();
-    if (this._is('with')) this._next();
-    const value = this._parseValue();
-    let start = null, end = null;
-    if (this._is('from')) {
-      this._next();
-      start = this._parseValue();
-      if (this._is('to')) {
-        this._next();
-        end = this._parseValue();
-      }
-    }
-    return { type: 'fillArray', arr, value, start, end };
-  }
-
-  // "is value an array into result"
-  _parseIsArrayEnglish() {
-    this._consume('is');
-    const value = this._consumeIdent();
-    if (this._is('an') || this._is('a')) this._next();
-    if (this._is('array')) this._next();
-    if (this._is('into') || this._is('called') || this._is('as')) this._next();
-    const out = this._consumeIdent();
-    return { type: 'isArray', value, out };
-  }
-
-  // "current time into now" or "current date into today"
-  _parseCurrentTime() {
-    this._consume('current');
-    const what = this._consumeIdent(); // 'time', 'date', 'timestamp'
-    if (this._is('into') || this._is('called') || this._is('as')) this._next();
-    const out = this._consumeIdent();
-    if (what === 'date' || what === 'datetime') {
-      return { type: 'dateCreate', dateValue: null, out };
-    }
-    return { type: 'now', out };
-  }
-
-  // "integer array from [1,2,3] into arr" or "decimal array from [1.5] into arr"
-  _parseTypedArrayEnglish(arrayType) {
-    this._next(); // consume 'integer' or 'decimal'
-    if (this._is('array')) this._next();
-    let source = null, size = null;
-    if (this._is('from')) {
-      this._next();
-      source = this._parseValue();
-    } else if (this._is('size') || this._is('of')) {
-      this._next();
-      if (this._is('size')) this._next();
-      size = this._parseValue();
-    }
-    if (this._is('into') || this._is('called') || this._is('as')) this._next();
-    const out = this._consumeIdent();
-    return { type: 'typedArray', arrayType, source, size, out };
-  }
-
-  // "allocate 16 bytes into buffer"
-  _parseAllocateBuffer() {
-    this._consume('allocate');
-    const size = this._parseValue();
-    if (this._is('bytes') || this._is('byte')) this._next();
-    if (this._is('into') || this._is('called') || this._is('as')) this._next();
-    const out = this._consumeIdent();
-    return { type: 'arrayBuffer', size, out };
-  }
-
-  // "dynamically get/set/check property from/on object"
-  _parseDynamically() {
-    this._consume('dynamically');
-    const action = this._consumeIdent(); // 'get', 'set', 'check', 'delete'
-    if (this._is('property')) this._next();
-    const prop = this._parseValue();
-    
-    if (action === 'get') {
-      if (this._is('from') || this._is('of')) this._next();
-      const obj = this._consumeIdent();
-      if (this._is('into') || this._is('called') || this._is('as')) this._next();
-      const out = this._consumeIdent();
-      return { type: 'reflectGet', obj, prop, out };
-    } else if (action === 'set') {
-      if (this._is('on') || this._is('of') || this._is('in')) this._next();
-      const obj = this._consumeIdent();
-      if (this._is('to')) this._next();
-      const value = this._parseValue();
-      return { type: 'reflectSet', obj, prop, value };
-    } else if (action === 'check' || action === 'has') {
-      if (this._is('in') || this._is('on') || this._is('of')) this._next();
-      const obj = this._consumeIdent();
-      if (this._is('into') || this._is('called') || this._is('as')) this._next();
-      const out = this._consumeIdent();
-      return { type: 'reflectHas', obj, prop, out };
-    } else if (action === 'delete' || action === 'remove') {
-      if (this._is('from') || this._is('of') || this._is('in')) this._next();
-      const obj = this._consumeIdent();
-      return { type: 'reflectDelete', obj, prop };
-    }
-    return null;
-  }
-
-  // "localize date/number with locale into result"
-  _parseLocalize() {
-    this._consume('localize');
-    if (this._is('the')) this._next();
-    const what = this._consumeIdent(); // 'date', 'number' or variable name
-    let isDate = what === 'date';
-    let isNumber = what === 'number';
-    let value;
-    
-    if (isDate || isNumber) {
-      value = this._consumeIdent();
-    } else {
-      value = what;
-    }
-    
-    let locale = 'en-US';
-    let options = {};
-    
-    if (this._is('with') || this._is('using')) {
-      this._next();
-      if (this._is('locale')) this._next();
-      const loc = this._parseValue();
-      locale = loc.value || loc;
-    }
-    
-    if (this._is('as') || this._is('style')) {
-      this._next();
-      const style = this._consumeIdent();
-      if (isDate) options.dateStyle = style;
-      else options.style = style;
-    }
-    
-    if (this._is('into') || this._is('called')) this._next();
-    const out = this._consumeIdent();
-    
-    if (isDate) {
-      return { type: 'formatDate', dateVar: value, locale, options, out };
-    } else {
-      return { type: 'formatNumber', value: { type: 'ident', value }, locale, options, out };
-    }
   }
 }
 
