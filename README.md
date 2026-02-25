@@ -259,7 +259,7 @@ call method "getRaise" on bob with 5000
 | Define class | `define class "Name" with prop1 and prop2` |
 | Constructor | `define constructor with arguments` |
 | Method | `define method "name" with arguments` |
-| No args | `with no arguments` |
+| No arguments | `with no arguments` |
 | Inheritance | `define class "Child" extends "Parent"` |
 | Create instance | `new "ClassName" with arguments into variable` |
 | Access this | `this propertyName` or `set this prop to value` |
@@ -394,7 +394,7 @@ end
 
 # Route parameters
 when the server receives a "GET" request to "/users/:id" then
-  set parameters to get the params from request
+  set parameters to get the parameters from request
   set userId to get id from parameters
   respond with { userId: userId }
 end
@@ -458,7 +458,7 @@ Access request data using `get X from request`:
 set body to get the body from request
 
 # Get URL parameters (for routes like /users/:id)
-set parameters to get the params from request
+set parameters to get the parameters from request
 set id to get id from parameters
 
 # Get query parameters

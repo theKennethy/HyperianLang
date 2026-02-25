@@ -1041,9 +1041,10 @@ class HLParser {
       case 'extension':
       case 'extname':   return this._parsePathOp();
       // server ops - English syntax
-      case 'start':     if (this._peek(1)?.value === 'server' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the') return this._parseStartServer(); return null;
+      case 'start':     if (this._peek(1)?.value === 'server' || (this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the') && this._peek(2)?.value === 'server') return this._parseStartServer(); return null;
       case 'create':    
-        if (this._peek(1)?.value === 'server' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the') return this._parseCreateServer(); 
+        if (this._peek(1)?.value === 'server' || (this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the') && this._peek(2)?.value === 'server') return this._parseCreateServer(); 
+        if (this._peek(1)?.value === 'a' && this._peek(2)?.value === 'list') return this._parseCreateList();
         if (this._peek(1)?.value === 'map') return this._parseCreateMap();
         if (this._peek(1)?.value === 'set') return this._parseCreateSet();
         return this._parseCreateFolder();
@@ -1246,7 +1247,6 @@ class HLParser {
       // ═══════════════════════════════════════════════════════════════════════
       case 'url':       return this._parseURL();
       case 'searchparams': return this._parseSearchParams();
-      case 'parameters': return this._parseSearchParams();  // alias
       // ═══════════════════════════════════════════════════════════════════════
       // CONSOLE - English readable
       // ═══════════════════════════════════════════════════════════════════════
@@ -1274,10 +1274,10 @@ class HLParser {
     this._consume('if');
     const condition = this._parseCondition();
     if (this._is('then')) this._consume('then'); // 'then' is optional
-    const consequent = this._parseBody(['else', 'end']);
+    const consequent = this._parseBody(['else', 'otherwise', 'end']);
     let alternate = [];
-    if (this._is('else')) {
-      this._consume('else');
+    if (this._is('else') || this._is('otherwise')) {
+      this._next();
       if (this._is('if')) { alternate = [this._parseIf()]; }
       else { alternate = this._parseBody(['end']); if (this._is('end')) this._consume('end'); }
     } else if (this._is('end')) { this._consume('end'); }
@@ -2583,6 +2583,15 @@ class HLParser {
     if (this._is('as')) this._next();
     const name = this._consumeIdent();
     return { type: 'createSet', name };
+  }
+  // ── create a list called users ──────────────────────────────────────────
+  _parseCreateList() {
+    this._consume('create');
+    if (this._is('a') || this._is('an')) this._next();
+    if (this._is('list') || this._is('array')) this._next();
+    if (this._is('called') || this._is('named') || this._is('as')) this._next();
+    const name = this._consumeIdent();
+    return { type: 'createList', name };
   }
   // ── type of X into t ─────────────────────────────────────────────────────
   _parseTypeOf() {
@@ -5982,6 +5991,10 @@ class HLInterpreter {
         if (w) w._vars[stmt.name] = new Set();
         break;
       }
+      case 'createList': {
+        if (w) w._vars[stmt.name] = [];
+        break;
+      }
       case 'setAdd': {
         const set = w?._vars[stmt.setName];
         if (set instanceof Set) {
@@ -6181,21 +6194,44 @@ class HLInterpreter {
             const method = req.method;
             const url = req.url.split('?')[0];
             
-            // Find matching route
-            const route = this._httpRoutes.find(r => r.method === method && r.path === url);
+            // Find matching route (supports :param patterns)
+            let route = null;
+            let extractedParams = {};
+            for (const r of this._httpRoutes || []) {
+              if (r.method !== method) continue;
+              const routeParts = r.path.split('/');
+              const urlParts = url.split('/');
+              if (routeParts.length !== urlParts.length) continue;
+              let match = true;
+              const params = {};
+              for (let i = 0; i < routeParts.length; i++) {
+                if (routeParts[i].startsWith(':')) {
+                  params[routeParts[i].slice(1)] = urlParts[i];
+                } else if (routeParts[i] !== urlParts[i]) {
+                  match = false;
+                  break;
+                }
+              }
+              if (match) {
+                route = r;
+                extractedParams = params;
+                break;
+              }
+            }
             
             if (route) {
               // Collect request body
               let body = '';
               req.on('data', chunk => body += chunk);
-              req.on('end', () => {
+              req.on('end', async () => {
                 // Set up request object
                 const reqObj = {
                   method: method,
                   url: url,
                   headers: req.headers,
                   body: body ? JSON.parse(body) : {},
-                  query: Object.fromEntries(new URL(req.url, `http://localhost:${_port}`).searchParams)
+                  query: Object.fromEntries(new URL(req.url, `http://localhost:${_port}`).searchParams),
+                  parameters: extractedParams
                 };
                 
                 // Create response context
@@ -6206,7 +6242,7 @@ class HLInterpreter {
                 w._vars[route.reqVar] = reqObj;
                 
                 for (const s of route.body) {
-                  this._executeStatement(s, w);
+                  await this._executeStatement(s, w);
                 }
               });
             } else {
