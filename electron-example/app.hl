@@ -1,0 +1,78 @@
+# HyperianLang Electron App
+# 100% HyperianLang - No JavaScript!
+
+log "Starting HyperianLang Electron App..."
+
+# App data
+set appName to "My Desktop App"
+set version to "1.0.0"
+
+create a list called todos
+append { id: 1, title: "Learn HyperianLang", done: false } to todos
+append { id: 2, title: "Build an Electron app", done: false } to todos
+append { id: 3, title: "Ship it!", done: false } to todos
+
+set nextId to 4
+
+# Helper: Build the HTML page
+define function renderPage
+  set todoItems to ""
+  
+  for each todo in todos do
+    set todoId to get id from todo
+    set todoTitle to get title from todo
+    set todoDone to get done from todo
+    
+    if todoDone equals true then
+      set todoItems to todoItems + "<li class='todo-item done'><form method='POST' action='/toggle/" + todoId + "'><button class='todo-checkbox'>✓</button></form><span class='todo-text'>" + todoTitle + "</span><span class='badge'>#" + todoId + "</span></li>"
+    otherwise
+      set todoItems to todoItems + "<li class='todo-item'><form method='POST' action='/toggle/" + todoId + "'><button class='todo-checkbox'></button></form><span class='todo-text'>" + todoTitle + "</span><span class='badge'>#" + todoId + "</span></li>"
+    end
+  end
+  
+  if todoItems equals "" then
+    set todoItems to "<li class='empty'>No todos yet. Add one above!</li>"
+  end
+  
+  set html to "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>HyperianLang App</title><style>* { margin: 0; padding: 0; box-sizing: border-box; } body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 40px; } .container { max-width: 600px; margin: 0 auto; } h1 { color: white; text-align: center; margin-bottom: 10px; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); } .subtitle { color: rgba(255,255,255,0.8); text-align: center; margin-bottom: 30px; } .card { background: white; border-radius: 16px; padding: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); } .add-form { display: flex; gap: 10px; margin-bottom: 20px; } input[type='text'] { flex: 1; padding: 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; } button { padding: 15px 25px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; } button:hover { background: #5a6fd6; } .todo-list { list-style: none; } .todo-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; } .todo-item.done .todo-text { text-decoration: line-through; color: #999; } .todo-checkbox { width: 24px; height: 24px; border: 2px solid #ddd; border-radius: 50%; margin-right: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; background: white; } .todo-item.done .todo-checkbox { background: #10b981; border-color: #10b981; color: white; } .todo-text { flex: 1; font-size: 16px; } .badge { background: #667eea; color: white; padding: 4px 10px; border-radius: 20px; font-size: 12px; } .empty { text-align: center; color: #999; padding: 40px; } .app-info { text-align: center; margin-top: 20px; color: rgba(255,255,255,0.7); font-size: 14px; }</style></head><body><div class='container'><h1>Todo App</h1><p class='subtitle'>100% HyperianLang + Electron</p><div class='card'><form class='add-form' method='POST' action='/add'><input type='text' name='title' placeholder='What needs to be done?' required><button type='submit'>Add</button></form><ul class='todo-list'>" + todoItems + "</ul></div><p class='app-info'>" + appName + " v" + version + " — Powered by HyperianLang</p></div></body></html>"
+  
+  return html
+end
+
+# Main page - renders todo list
+when the server receives a "GET" request to "/" then
+  call function renderPage into pageHtml
+  send html pageHtml
+end
+
+# Add a new todo
+when the server receives a "POST" request to "/add" then
+  set body to get the body from request
+  set title to get title from body
+  set newTodo to { id: nextId, title: title, done: false }
+  append newTodo to todos
+  increase nextId by 1
+  log "Added todo: " + title
+  # Redirect back to main page
+  send html "<html><head><meta http-equiv='refresh' content='0;url=/'></head></html>"
+end
+
+# Toggle a todo
+when the server receives a "POST" request to "/toggle/:id" then
+  set params to get the params from request
+  set todoId to get id from params
+  log "Toggling todo: " + todoId
+  # Redirect back to main page
+  send html "<html><head><meta http-equiv='refresh' content='0;url=/'></head></html>"
+end
+
+# API for app info (optional)
+when the server receives a "GET" request to "/api/info" then
+  respond with { name: appName, version: version, language: "HyperianLang" }
+end
+
+log "All routes defined in HyperianLang!"
+log "Starting server..."
+
+# Start the server
+start the server on port 3000

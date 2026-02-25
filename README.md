@@ -379,109 +379,80 @@ When serving files, the following MIME types are auto-detected:
 
 ## Using with Electron
 
-HyperianLang works seamlessly with Electron for building desktop applications.
+HyperianLang works seamlessly with Electron for building desktop applications — **no JavaScript files required**.
 
 ### Quick Setup
 
 ```bash
-mkdir my-electron-app && cd my-electron-app
-npm init -y
+# Install Electron in your project or globally
 npm install electron --save-dev
 ```
 
-### main.js (Electron Main Process)
+### Run Your App
 
-```javascript
-const { app, BrowserWindow } = require('electron');
-const { HyperianLang } = require('./core.js');
-const path = require('path');
-
-let mainWindow;
-
-app.whenReady().then(async () => {
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
-    }
-  });
-
-  // Run HyperianLang code in the main process
-  const hl = new HyperianLang();
-  hl.load(`
-    log "Electron app started!"
-    set appName to "My HyperianLang App"
-  `);
-  await hl.run();
-
-  mainWindow.loadFile('index.html');
-});
-```
-
-### index.html (Renderer)
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <title>HyperianLang Electron App</title>
-</head>
-<body>
-  <h1>HyperianLang Desktop App</h1>
-  <div id="output"></div>
-  
-  <script>
-    const { HyperianLang } = require('./core.js');
-    
-    const hl = new HyperianLang();
-    hl.load(`
-      set greeting to "Hello from HyperianLang!"
-      log greeting
-    `);
-    hl.run();
-  </script>
-</body>
-</html>
-```
-
-### package.json
-
-```json
-{
-  "name": "hyperianlang-electron",
-  "main": "main.js",
-  "scripts": {
-    "start": "electron ."
-  }
-}
-```
-
-### Running Your Electron App
+Use the `--electron` flag to run any HyperianLang file as a desktop app:
 
 ```bash
-npm start
+node run.js --electron myapp.hl
 ```
 
-### Electron + HTTP Server
+That's it! No `main.js`, no boilerplate — just your HyperianLang code.
 
-You can even run HyperianLang's HTTP server inside Electron:
+### Example: Desktop Todo App (app.hl)
 
-```javascript
-// In main.js
-const hl = new HyperianLang();
-hl.load(`
-  when the server receives a "GET" request to "/" then
-    respond with { status: "ok", app: "electron" }
+```hyperianlang
+# HyperianLang Desktop App - Todo List
+
+create a list called todos
+
+define function "renderPage" with no arguments
+  set html to "<!DOCTYPE html><html><head>"
+  set html to html plus "<title>HyperianLang Todo App</title>"
+  set html to html plus "<style>body{font-family:sans-serif;max-width:600px;margin:50px auto;}</style>"
+  set html to html plus "</head><body>"
+  set html to html plus "<h1>Todo List</h1>"
+  set html to html plus "<form method='POST' action='/add'>"
+  set html to html plus "<input name='task' placeholder='New task...'>"
+  set html to html plus "<button>Add</button>"
+  set html to html plus "</form><ul>"
+  
+  for each todo in todos
+    set html to html plus "<li>" plus todo plus "</li>"
   end
-  start the server on port 3000
-`);
-await hl.run();
+  
+  set html to html plus "</ul></body></html>"
+  return html
+end
 
-// Now localhost:3000 is accessible from the Electron app
-mainWindow.loadURL('http://localhost:3000');
+when the server receives a "GET" request to "/" then
+  call function "renderPage" into page
+  send html page
+end
+
+when the server receives a "POST" request to "/add" then
+  set body to get the body from request
+  set task to get task from body
+  append task to todos
+  send html "<meta http-equiv='refresh' content='0;url=/'>"
+end
+
+start the server on port 3000
 ```
+
+### Running the Desktop App
+
+```bash
+node run.js --electron app.hl
+```
+
+An Electron window opens and loads your HyperianLang server at `http://localhost:3000`.
+
+### How It Works
+
+The `--electron` flag:
+1. Loads your `.hl` file and starts any HTTP servers
+2. Launches Electron with a window pointing to `localhost:3000`
+3. No JavaScript boilerplate needed — 100% HyperianLang
 
 ---
 
