@@ -43,31 +43,30 @@ const _ES_KEYWORDS = new Set([
   'cluster', 'fork', 'master', 'primary', 'workers', 'label', 'labeled', 'shared', 'atomics',
   // Keys iteration
   'keys',
-  // HTML generation
+  // HTML generation - English sentence syntax
   'html', 'head', 'body', 'div', 'span', 'section', 'article', 'header', 'footer', 'nav', 'main', 'aside',
   'heading', 'paragraph', 'link', 'image', 'button', 'input', 'form', 'label', 'textarea', 'select', 'option',
-  'table', 'row', 'cell', 'thead', 'tbody', 'list', 'item', 'script', 'style', 'meta', 'title',
-  'ordered', 'unordered', 'stylesheet', 'charset', 'viewport', 'template',
-  // Additional HTML elements
+  'table', 'row', 'cell', 'list', 'item', 'script', 'style', 'meta', 'title',
+  'ordered', 'unordered', 'stylesheet', 'charset', 'viewport',
+  // HTML elements - English names
   'break', 'line', 'bold', 'strong', 'italic', 'emphasis', 'code', 'preformatted', 'quote', 'blockquote',
-  'video', 'audio', 'iframe', 'canvas', 'svg', 'details', 'summary', 'figure', 'caption',
-  'progress', 'meter', 'datalist', 'abbr', 'mark', 'time', 'sub', 'sup', 'hr', 'br',
-  'controls', 'autoplay', 'loop', 'muted', 'poster', 'width', 'height', 'open', 'datetime',
-  // Complete HTML5 elements
-  'dialog', 'slot', 'picture', 'source', 'track', 'embed', 'object', 'param',
-  'map', 'area', 'ruby', 'rt', 'rp', 'bdi', 'bdo', 'wbr',
-  'del', 'ins', 'strikethrough', 'underline', 'small', 'cite', 'definition', 'keyboard', 'sample', 'variable',
-  'colgroup', 'col', 'tfoot', 'tablecaption', 'fieldset', 'legend', 'output', 'optgroup',
-  'noscript', 'base', 'data', 'address', 'horizontal',
-  // English sentence-friendly aliases
-  'inserted', 'deleted', 'highlighted', 'subscript', 'superscript', 'abbreviation',
-  'pronunciation', 'fallback', 'wordbreak', 'softbreak', 'isolate', 'direction',
-  'column', 'columns', 'headerrows', 'bodyrows', 'footerrows', 'optiongroup',
-  'responsive', 'captions', 'subtitles', 'embed', 'external', 'modal', 'popup',
-  'disclosure', 'expandable', 'wrapper', 'container', 'group', 'imagemap', 'clickable',
-  'blueprint', 'placeholder', 'annotation', 'mediasource', 'formgroup', 'grouptitle',
-  'result', 'nojs', 'baseurl', 'machinevalue', 'contact', 'illustration', 'figcaption',
-  'progressbar', 'gauge', 'suggestions', 'datetime', 'fineprint', 'citation',
+  'video', 'audio', 'iframe', 'canvas', 'svg', 'summary',
+  'controls', 'autoplay', 'loop', 'muted', 'poster', 'width', 'height', 'open',
+  'embed', 'object', 'param', 'horizontal',
+  'strikethrough', 'underline', 'definition', 'keyboard', 'sample', 'variable',
+  'tablecaption',
+  // English sentence-friendly names (replacing HTML tag names)
+  'subscript', 'superscript', 'highlighted', 'abbreviation',
+  'expandable', 'disclosure', 'illustration', 'figcaption',
+  'progressbar', 'gauge', 'suggestions', 'datetime',
+  'fineprint', 'citation', 'annotation', 'pronunciation', 'fallback',
+  'modal', 'popup', 'blueprint', 'placeholder',
+  'responsive', 'mediasource', 'captions', 'subtitles',
+  'imagemap', 'clickable', 'isolate', 'direction', 'wordbreak', 'softbreak',
+  'deleted', 'inserted',
+  'columns', 'column', 'headerrows', 'bodyrows', 'footerrows',
+  'formgroup', 'grouptitle', 'result', 'optiongroup',
+  'nojs', 'baseurl', 'machinevalue', 'contact',
 ]);
 
 const _ES_ACTIONS = new Set([
@@ -5900,14 +5899,14 @@ class HLParser {
       return { type: 'htmlSvg', attrs, content, out };
     }
     
-    // html details / html expandable / html disclosure with open ... end details
-    if (tok.value === 'details' || tok.value === 'expandable' || tok.value === 'disclosure') {
+    // html expandable / html disclosure with open ... end expandable
+    if (tok.value === 'expandable' || tok.value === 'disclosure') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
       if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('details') || this._is('expandable') || this._is('disclosure')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('expandable') || this._is('disclosure')) this._next(); }
       return { type: 'htmlDetails', attrs, body, out };
     }
     
@@ -5920,27 +5919,27 @@ class HLParser {
     }
     
     // html figure ... end figure
-    // html figure / html illustration ... end figure
-    if (tok.value === 'figure' || tok.value === 'illustration') {
+    // html illustration ... end illustration
+    if (tok.value === 'illustration') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
       if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('figure') || this._is('illustration')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('illustration')) this._next(); }
       return { type: 'htmlFigure', attrs, body, out };
     }
     
-    // html caption / html figcaption "text"
-    if (tok.value === 'caption' || tok.value === 'figcaption') {
+    // html figcaption "text"
+    if (tok.value === 'figcaption') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
       return { type: 'htmlFigcaption', text, attrs };
     }
     
-    // html progress / html progressbar with value 50 and max 100
-    if (tok.value === 'progress' || tok.value === 'progressbar') {
+    // html progressbar with value 50 and max 100
+    if (tok.value === 'progressbar') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
@@ -5948,8 +5947,8 @@ class HLParser {
       return { type: 'htmlProgress', attrs, out };
     }
     
-    // html meter / html gauge with value 0.6 and min 0 and max 1
-    if (tok.value === 'meter' || tok.value === 'gauge') {
+    // html gauge with value 0.6 and min 0 and max 1
+    if (tok.value === 'gauge') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
@@ -5957,19 +5956,19 @@ class HLParser {
       return { type: 'htmlMeter', attrs, out };
     }
     
-    // html datalist / html suggestions with id "options" ... end datalist
-    if (tok.value === 'datalist' || tok.value === 'suggestions') {
+    // html suggestions with id "options" ... end suggestions
+    if (tok.value === 'suggestions') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
       if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('datalist') || this._is('suggestions')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('suggestions')) this._next(); }
       return { type: 'htmlDatalist', attrs, body, out };
     }
     
-    // html abbr / html abbreviation "HTML" with title "HyperText Markup Language"
-    if (tok.value === 'abbr' || tok.value === 'abbreviation') {
+    // html abbreviation "HTML" with title "HyperText Markup Language"
+    if (tok.value === 'abbreviation') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -5978,8 +5977,8 @@ class HLParser {
       return { type: 'htmlAbbr', text, attrs, out };
     }
     
-    // html mark / html highlighted "text"
-    if (tok.value === 'mark' || tok.value === 'highlighted') {
+    // html highlighted "text"
+    if (tok.value === 'highlighted') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -5988,8 +5987,8 @@ class HLParser {
       return { type: 'htmlMark', text, attrs, out };
     }
     
-    // html time / html datetime "2024-01-01" with datetime "2024-01-01"
-    if (tok.value === 'time' || tok.value === 'datetime') {
+    // html datetime "2024-01-01" with datetime "2024-01-01"
+    if (tok.value === 'datetime') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -5998,8 +5997,8 @@ class HLParser {
       return { type: 'htmlTime', text, attrs, out };
     }
     
-    // html sub "subscript" / html subscript "text"
-    if (tok.value === 'sub' || tok.value === 'subscript') {
+    // html subscript "text"
+    if (tok.value === 'subscript') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -6008,8 +6007,8 @@ class HLParser {
       return { type: 'htmlSub', text, attrs, out };
     }
     
-    // html sup "superscript" / html superscript "text"
-    if (tok.value === 'sup' || tok.value === 'superscript') {
+    // html superscript "text"
+    if (tok.value === 'superscript') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -6022,55 +6021,55 @@ class HLParser {
     // COMPLETE HTML5 ELEMENTS
     // ═══════════════════════════════════════════════════════════════════════════
     
-    // html dialog / html modal / html popup with open ... end dialog
-    if (tok.value === 'dialog' || tok.value === 'modal' || tok.value === 'popup') {
+    // html modal / html popup with open ... end modal
+    if (tok.value === 'modal' || tok.value === 'popup') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
       if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('dialog') || this._is('modal') || this._is('popup')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('modal') || this._is('popup')) this._next(); }
       return { type: 'htmlDialog', attrs, body, out };
     }
     
-    // html template / html blueprint with id "tmpl" ... end template
-    if (tok.value === 'template' || tok.value === 'blueprint') {
+    // html blueprint with id "tmpl" ... end blueprint
+    if (tok.value === 'blueprint') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
       if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('template') || this._is('blueprint')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('blueprint')) this._next(); }
       return { type: 'htmlTemplate', attrs, body, out };
     }
     
-    // html slot / html placeholder with name "content"
-    if (tok.value === 'slot' || tok.value === 'placeholder') {
+    // html placeholder with name "content"
+    if (tok.value === 'placeholder') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       return { type: 'htmlSlot', attrs };
     }
     
-    // html picture / html responsive ... end picture
-    if (tok.value === 'picture' || tok.value === 'responsive') {
+    // html responsive ... end responsive
+    if (tok.value === 'responsive') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
       if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('picture') || this._is('responsive')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('responsive')) this._next(); }
       return { type: 'htmlPicture', attrs, body, out };
     }
     
-    // html source / html mediasource with src "image.webp" and type "image/webp"
-    if (tok.value === 'source' || tok.value === 'mediasource') {
+    // html mediasource with src "image.webp" and type "image/webp"
+    if (tok.value === 'mediasource') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       return { type: 'htmlSource', attrs };
     }
     
-    // html track / html captions with src "captions.vtt" and kind "subtitles"
-    if (tok.value === 'track' || tok.value === 'captions' || tok.value === 'subtitles') {
+    // html captions / html subtitles with src "captions.vtt" and kind "subtitles"
+    if (tok.value === 'captions' || tok.value === 'subtitles') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       return { type: 'htmlTrack', attrs };
@@ -6103,52 +6102,52 @@ class HLParser {
       return { type: 'htmlParam', attrs };
     }
     
-    // html map / html imagemap with name "workmap" ... end map
-    if (tok.value === 'map' || tok.value === 'imagemap') {
+    // html imagemap with name "workmap" ... end imagemap
+    if (tok.value === 'imagemap') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
       if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('map') || this._is('imagemap')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('imagemap')) this._next(); }
       return { type: 'htmlMap', attrs, body, out };
     }
     
-    // html area / html clickable with shape "rect" and coords "0,0,100,100" and href "link.html"
-    if (tok.value === 'area' || tok.value === 'clickable') {
+    // html clickable with shape "rect" and coords "0,0,100,100" and href "link.html"
+    if (tok.value === 'clickable') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       return { type: 'htmlArea', attrs };
     }
     
-    // html ruby / html annotation ... end ruby (East Asian typography)
-    if (tok.value === 'ruby' || tok.value === 'annotation') {
+    // html annotation ... end annotation (East Asian typography)
+    if (tok.value === 'annotation') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
       if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('ruby') || this._is('annotation')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('annotation')) this._next(); }
       return { type: 'htmlRuby', attrs, body, out };
     }
     
-    // html rt / html pronunciation "pronunciation"
-    if (tok.value === 'rt' || tok.value === 'pronunciation') {
+    // html pronunciation "pronunciation"
+    if (tok.value === 'pronunciation') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
       return { type: 'htmlRt', text, attrs };
     }
     
-    // html rp / html fallback "("
-    if (tok.value === 'rp' || tok.value === 'fallback') {
+    // html fallback "("
+    if (tok.value === 'fallback') {
       this._next();
       const text = this._parseValue();
       return { type: 'htmlRp', text };
     }
     
-    // html bdi "text" (bidirectional isolation) / html isolate "text"
-    if (tok.value === 'bdi' || tok.value === 'isolate') {
+    // html isolate "text" (bidirectional isolation)
+    if (tok.value === 'isolate') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -6157,8 +6156,8 @@ class HLParser {
       return { type: 'htmlBdi', text, attrs, out };
     }
     
-    // html bdo "text" with dir "rtl" / html direction "text" with dir "rtl"
-    if (tok.value === 'bdo' || tok.value === 'direction') {
+    // html direction "text" with dir "rtl"
+    if (tok.value === 'direction') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -6167,14 +6166,14 @@ class HLParser {
       return { type: 'htmlBdo', text, attrs, out };
     }
     
-    // html wbr / html wordbreak / html softbreak (word break opportunity)
-    if (tok.value === 'wbr' || tok.value === 'wordbreak' || tok.value === 'softbreak') {
+    // html wordbreak / html softbreak (word break opportunity)
+    if (tok.value === 'wordbreak' || tok.value === 'softbreak') {
       this._next();
       return { type: 'htmlWbr' };
     }
     
-    // html del "deleted text" / html strikethrough "text" / html deleted "text"
-    if (tok.value === 'del' || tok.value === 'strikethrough' || tok.value === 'deleted') {
+    // html strikethrough / html deleted "text"
+    if (tok.value === 'strikethrough' || tok.value === 'deleted') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -6183,8 +6182,8 @@ class HLParser {
       return { type: 'htmlDel', text, attrs, out };
     }
     
-    // html ins "inserted text" / html inserted "text"
-    if (tok.value === 'ins' || tok.value === 'inserted') {
+    // html inserted "text"
+    if (tok.value === 'inserted') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -6203,8 +6202,8 @@ class HLParser {
       return { type: 'htmlU', text, attrs, out };
     }
     
-    // html small / html fineprint "fine print"
-    if (tok.value === 'small' || tok.value === 'fineprint') {
+    // html fineprint "fine print"
+    if (tok.value === 'fineprint') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -6213,8 +6212,8 @@ class HLParser {
       return { type: 'htmlSmall', text, attrs, out };
     }
     
-    // html cite / html citation "Book Title"
-    if (tok.value === 'cite' || tok.value === 'citation') {
+    // html citation "Book Title"
+    if (tok.value === 'citation') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -6263,46 +6262,46 @@ class HLParser {
       return { type: 'htmlVar', text, attrs, out };
     }
     
-    // html colgroup / html columns with span 2 ... end colgroup
-    if (tok.value === 'colgroup' || tok.value === 'columns') {
+    // html columns with span 2 ... end columns
+    if (tok.value === 'columns') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('colgroup') || this._is('columns')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('columns')) this._next(); }
       return { type: 'htmlColgroup', attrs, body };
     }
     
-    // html col / html column with span 2
-    if (tok.value === 'col' || tok.value === 'column') {
+    // html column with span 2
+    if (tok.value === 'column') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       return { type: 'htmlCol', attrs };
     }
     
-    // html thead / html headerrows ... end thead
-    if (tok.value === 'thead' || tok.value === 'headerrows') {
+    // html headerrows ... end headerrows
+    if (tok.value === 'headerrows') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('thead') || this._is('headerrows')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('headerrows')) this._next(); }
       return { type: 'htmlThead', attrs, body };
     }
     
-    // html tbody / html bodyrows ... end tbody
-    if (tok.value === 'tbody' || tok.value === 'bodyrows') {
+    // html bodyrows ... end bodyrows
+    if (tok.value === 'bodyrows') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('tbody') || this._is('bodyrows')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('bodyrows')) this._next(); }
       return { type: 'htmlTbody', attrs, body };
     }
     
-    // html tfoot / html footerrows ... end tfoot
-    if (tok.value === 'tfoot' || tok.value === 'footerrows') {
+    // html footerrows ... end footerrows
+    if (tok.value === 'footerrows') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('tfoot') || this._is('footerrows')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('footerrows')) this._next(); }
       return { type: 'htmlTfoot', attrs, body };
     }
     
@@ -6314,28 +6313,27 @@ class HLParser {
       return { type: 'htmlCaption', text, attrs };
     }
     
-    // html fieldset ... end fieldset
-    // html fieldset / html formgroup ... end fieldset
-    if (tok.value === 'fieldset' || tok.value === 'formgroup') {
+    // html formgroup ... end formgroup
+    if (tok.value === 'formgroup') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
       if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('fieldset') || this._is('formgroup')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('formgroup')) this._next(); }
       return { type: 'htmlFieldset', attrs, body, out };
     }
     
-    // html legend / html grouptitle "Form Section"
-    if (tok.value === 'legend' || tok.value === 'grouptitle') {
+    // html grouptitle "Form Section"
+    if (tok.value === 'grouptitle') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
       return { type: 'htmlLegend', text, attrs };
     }
     
-    // html output / html result with for "a b" and name "result"
-    if (tok.value === 'output' || tok.value === 'result') {
+    // html result with for "a b" and name "result"
+    if (tok.value === 'result') {
       this._next();
       let text = null;
       if (this._peek()?.type === 'STRING') text = this._parseValue();
@@ -6345,32 +6343,32 @@ class HLParser {
       return { type: 'htmlOutput', text, attrs, out };
     }
     
-    // html optgroup / html optiongroup with label "Group" ... end optgroup
-    if (tok.value === 'optgroup' || tok.value === 'optiongroup') {
+    // html optiongroup with label "Group" ... end optiongroup
+    if (tok.value === 'optiongroup') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('optgroup') || this._is('optiongroup')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('optiongroup')) this._next(); }
       return { type: 'htmlOptgroup', attrs, body };
     }
     
-    // html noscript / html nojs ... end noscript
-    if (tok.value === 'noscript' || tok.value === 'nojs') {
+    // html nojs ... end nojs
+    if (tok.value === 'nojs') {
       this._next();
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('noscript') || this._is('nojs')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('nojs')) this._next(); }
       return { type: 'htmlNoscript', body };
     }
     
-    // html base / html baseurl with href "https://example.com/"
-    if (tok.value === 'base' || tok.value === 'baseurl') {
+    // html baseurl with href "https://example.com/"
+    if (tok.value === 'baseurl') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       return { type: 'htmlBase', attrs };
     }
     
-    // html data / html machinevalue "100" with value "100"
-    if (tok.value === 'data' || tok.value === 'machinevalue') {
+    // html machinevalue "100" with value "100"
+    if (tok.value === 'machinevalue') {
       this._next();
       const text = this._parseValue();
       const attrs = this._parseHtmlAttrs();
@@ -6379,14 +6377,14 @@ class HLParser {
       return { type: 'htmlData', text, attrs, out };
     }
     
-    // html address / html contact ... end address
-    if (tok.value === 'address' || tok.value === 'contact') {
+    // html contact ... end contact
+    if (tok.value === 'contact') {
       this._next();
       const attrs = this._parseHtmlAttrs();
       let out = null;
       if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
       const body = this._parseBody(['end']);
-      if (this._is('end')) { this._next(); if (this._is('address') || this._is('contact')) this._next(); }
+      if (this._is('end')) { this._next(); if (this._is('contact')) this._next(); }
       return { type: 'htmlAddress', attrs, body, out };
     }
     
