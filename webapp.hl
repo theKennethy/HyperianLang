@@ -14,7 +14,48 @@ log "Starting HyperianLang Web Application..."
 
 # Serve the main HTML page
 when the server receives a "GET" request to "/" then
-  serve file "public/index.html"
+  html page
+    html head
+      html title "My Website"
+    end head
+    html body
+      html heading "Welcome"
+      html paragraph "This is a sample page."
+      
+      html highlighted "important text"
+      html subscript "2" 
+      html superscript "3"
+      html abbreviation "HTML" with title "HyperText Markup Language"
+      
+      html modal with open
+        html paragraph "This is a popup dialog"
+      end modal
+      
+      html expandable
+        html summary "Click to expand"
+        html paragraph "Hidden content here"
+      end expandable
+      
+      html illustration
+        html image with src "photo.jpg"
+        html figcaption "A beautiful photo"
+      end illustration
+      
+      html progressbar with value "70" and max "100"
+      html gauge with value "0.5" and min "0" and max "1"
+      
+      html deleted "removed text"
+      html inserted "added text"
+      html fineprint "Legal disclaimer"
+      html citation "Book Title"
+      
+      html formgroup
+        html grouptitle "Personal Info"
+        html label "Name:"
+        html input with type "text" and name "name"
+      end formgroup
+    end body
+  end page
 end
 
 # API: Get all users

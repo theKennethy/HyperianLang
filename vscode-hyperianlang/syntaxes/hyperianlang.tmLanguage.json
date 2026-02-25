@@ -10,6 +10,7 @@
     { "include": "#event-block" },
     { "include": "#control-flow" },
     { "include": "#declarations" },
+    { "include": "#html-keywords" },
     { "include": "#actions" },
     { "include": "#operators" },
     { "include": "#numbers" },
@@ -239,6 +240,62 @@
         {
           "name": "punctuation.definition.article.hyperianlang",
           "match": "\\b(the|a|an)\\b"
+        }
+      ]
+    },
+    "html-keywords": {
+      "patterns": [
+        {
+          "name": "entity.name.tag.hyperianlang",
+          "match": "\\b(html)\\b"
+        },
+        {
+          "name": "entity.name.tag.structure.hyperianlang",
+          "match": "\\b(page|head|body|div|span|section|article|header|footer|nav|main|aside)\\b"
+        },
+        {
+          "name": "entity.name.tag.text.hyperianlang",
+          "match": "\\b(heading|paragraph|bold|strong|italic|emphasis|code|preformatted|quote|blockquote)\\b"
+        },
+        {
+          "name": "entity.name.tag.form.hyperianlang",
+          "match": "\\b(form|input|button|label|textarea|select|option|formgroup|grouptitle|result|optiongroup)\\b"
+        },
+        {
+          "name": "entity.name.tag.media.hyperianlang",
+          "match": "\\b(image|video|audio|iframe|canvas|svg|illustration|figcaption|responsive|mediasource|captions|subtitles)\\b"
+        },
+        {
+          "name": "entity.name.tag.list.hyperianlang",
+          "match": "\\b(list|item|ordered|unordered|table|row|cell|columns|column|headerrows|bodyrows|footerrows|tablecaption)\\b"
+        },
+        {
+          "name": "entity.name.tag.semantic.hyperianlang",
+          "match": "\\b(link|meta|title|script|style|stylesheet|charset|viewport)\\b"
+        },
+        {
+          "name": "entity.name.tag.interactive.hyperianlang",
+          "match": "\\b(modal|popup|expandable|disclosure|summary|suggestions|blueprint|placeholder)\\b"
+        },
+        {
+          "name": "entity.name.tag.formatting.hyperianlang",
+          "match": "\\b(highlighted|subscript|superscript|abbreviation|deleted|inserted|strikethrough|underline|fineprint|citation)\\b"
+        },
+        {
+          "name": "entity.name.tag.misc.hyperianlang",
+          "match": "\\b(progressbar|gauge|datetime|annotation|pronunciation|fallback|imagemap|clickable|isolate|direction|wordbreak|softbreak)\\b"
+        },
+        {
+          "name": "entity.name.tag.document.hyperianlang",
+          "match": "\\b(nojs|baseurl|machinevalue|contact|definition|keyboard|sample|variable|horizontal|break|line)\\b"
+        },
+        {
+          "name": "entity.name.tag.embed.hyperianlang",
+          "match": "\\b(embed|object|param)\\b"
+        },
+        {
+          "name": "support.constant.attribute.hyperianlang",
+          "match": "\\b(controls|autoplay|loop|muted|poster|width|height|open)\\b"
         }
       ]
     }
