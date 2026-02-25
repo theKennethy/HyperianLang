@@ -9,12 +9,21 @@
   "scripts": {
     "test": "node run.js examples/hello.es"
   },
-  "keywords": ["game", "scripting", "language", "rpg", "hyperianlang"],
+  "keywords": [
+    "game",
+    "scripting",
+    "language",
+    "rpg",
+    "hyperianlang"
+  ],
   "license": "MIT",
   "files": [
     "core.js",
     "runtime.js",
     "run.js",
     "README.md"
-  ]
+  ],
+  "dependencies": {
+    "better-sqlite3": "^12.6.2"
+  }
 }

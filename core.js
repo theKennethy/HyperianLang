@@ -39,6 +39,10 @@ const _ES_KEYWORDS = new Set([
   'format', 'locale',
   // Missing JS features
   'url', 'abort', 'clone',
+  // Cluster, labels, atomics
+  'cluster', 'fork', 'master', 'primary', 'workers', 'label', 'labeled', 'shared', 'atomics',
+  // Keys iteration
+  'keys',
 ]);
 
 const _ES_ACTIONS = new Set([
@@ -118,6 +122,14 @@ const _ES_ACTIONS = new Set([
   'table', 'group', 'groupend', 'timestart', 'timeend', 'assert',
   // Missing JS features - Misc
   'clone', 'microtask', 'abort', 'textencode', 'textdecode',
+  // Missing JS features - NEW
+  'extract', 'otherwise', 'coalesce', 'ask', 'compress', 'decompress',
+  'lookup', 'worker', 'pipe', 'stream', 'secure',
+  'cpu', 'memory', 'platform', 'hostname', 'uptime',
+  // Cluster, labels, atomics
+  'cluster', 'fork', 'label', 'labeled', 'atomic', 'sharedbuffer',
+  // Keys iteration
+  'keys', 'iterate',
 ]);
 
 const _ES_PREPS = new Set([
@@ -289,22 +301,24 @@ class HLLexer {
         continue;
       }
 
-      // Negative number literal
+      // Negative number literal (with optional numeric separators _)
       if (ch === '-' && this.pos + 1 < this.source.length && /[0-9]/.test(this.source[this.pos + 1])) {
         let num = '-';
         this.pos++;
-        while (this.pos < this.source.length && /[0-9.]/.test(this.source[this.pos])) {
-          num += this.source[this.pos++];
+        while (this.pos < this.source.length && /[0-9._]/.test(this.source[this.pos])) {
+          if (this.source[this.pos] !== '_') num += this.source[this.pos];
+          this.pos++;
         }
         tokens.push({ type: 'NUMBER', value: parseFloat(num) });
         continue;
       }
 
-      // Positive number literal
+      // Positive number literal (with optional numeric separators _)
       if (/[0-9]/.test(ch)) {
         let num = '';
-        while (this.pos < this.source.length && /[0-9.]/.test(this.source[this.pos])) {
-          num += this.source[this.pos++];
+        while (this.pos < this.source.length && /[0-9._]/.test(this.source[this.pos])) {
+          if (this.source[this.pos] !== '_') num += this.source[this.pos];
+          this.pos++;
         }
         tokens.push({ type: 'NUMBER', value: parseFloat(num) });
         continue;
@@ -434,6 +448,10 @@ class HLParser {
       'read', 'write', 'split', 'replace', 'convert', 'sort', 'reverse', 'filter',
       'merge', 'flatten', 'get', 'find', 'clamp', 'log', 'exit', 'run', 'create',
       'transform', 'reduce', 'copy', 'assign', 'match', 'return', 'check',
+      'query', 'select', 'insert', 'update', 'connect',
+      // New features
+      'atomic', 'cluster', 'shared', 'iterate', 'keys', 'lookup', 'worker',
+      'compress', 'decompress', 'assert', 'secure', 'pipe', 'stream',
     ]);
     // Statement-starting keywords that should not be consumed as part of variable names
     const STMT_KEYWORDS = new Set([
@@ -605,20 +623,69 @@ class HLParser {
     }
 
     // Object literal: {"key": value, ...}
+    // Also supports: shorthand {name, age}, computed {[key]: value}, method shorthand {greet() {}}
     if (tok.type === 'PUNCT' && tok.value === '{') {
       this._next(); // consume '{'
       const pairs = [];
       while (this._peek() && !(this._peek().type === 'PUNCT' && this._peek().value === '}')) {
         let key;
-        if (this._peek()?.type === 'STRING') {
+        let isComputed = false;
+        let isMethod = false;
+        let methodParams = [];
+        let methodBody = [];
+        
+        // Computed property name: [expression]
+        if (this._peek()?.type === 'PUNCT' && this._peek()?.value === '[') {
+          this._next(); // consume '['
+          key = this._parseValue();
+          isComputed = true;
+          if (this._peek()?.type === 'PUNCT' && this._peek()?.value === ']') this._next();
+        }
+        // String key
+        else if (this._peek()?.type === 'STRING') {
           key = this._next().value;
-        } else {
+        }
+        // Identifier key
+        else {
           key = this._consumeIdent();
         }
-        // consume : if present
-        if (this._peek()?.type === 'PUNCT' && this._peek()?.value === ':') this._next();
-        const value = this._parseValue();
-        pairs.push({ key, value });
+        
+        // Check for method shorthand: key() or key(params)
+        if (this._peek()?.type === 'PUNCT' && this._peek()?.value === '(') {
+          isMethod = true;
+          this._next(); // consume '('
+          while (this._peek() && !(this._peek().type === 'PUNCT' && this._peek().value === ')')) {
+            if (this._peek()?.type === 'PUNCT' && this._peek()?.value === ',') { this._next(); continue; }
+            methodParams.push(this._consumeIdent());
+          }
+          if (this._peek()?.type === 'PUNCT' && this._peek()?.value === ')') this._next();
+          // Parse method body until closing brace or comma
+          if (this._peek()?.type === 'PUNCT' && this._peek()?.value === '{') {
+            this._next(); // consume '{'
+            // Simple inline body parsing - for now just store the block
+            let braceCount = 1;
+            while (this._peek() && braceCount > 0) {
+              if (this._peek()?.type === 'PUNCT' && this._peek()?.value === '{') braceCount++;
+              if (this._peek()?.type === 'PUNCT' && this._peek()?.value === '}') braceCount--;
+              if (braceCount > 0) methodBody.push(this._parseStatement());
+            }
+            if (this._peek()?.type === 'PUNCT' && this._peek()?.value === '}') this._next();
+          }
+          pairs.push({ key, isComputed, isMethod, methodParams, methodBody });
+        }
+        // Check for shorthand: just {name} without colon or value
+        else if (this._peek()?.type === 'PUNCT' && (this._peek()?.value === ',' || this._peek()?.value === '}')) {
+          // Shorthand property: {name} means {name: name}
+          pairs.push({ key, value: { type: 'ident', value: key }, isComputed, isShorthand: true });
+        }
+        // Regular key: value
+        else {
+          // consume : if present
+          if (this._peek()?.type === 'PUNCT' && this._peek()?.value === ':') this._next();
+          const value = this._parseValue();
+          pairs.push({ key, value, isComputed });
+        }
+        
         if (this._peek()?.type === 'PUNCT' && this._peek()?.value === ',') this._next();
       }
       if (this._peek()?.type === 'PUNCT' && this._peek()?.value === '}') this._next();
@@ -708,6 +775,10 @@ class HLParser {
         'read', 'write', 'split', 'replace', 'convert', 'sort', 'reverse', 'filter',
         'merge', 'flatten', 'get', 'find', 'clamp', 'log', 'exit', 'run', 'create',
         'transform', 'reduce', 'copy', 'assign', 'match', 'return', 'check',
+        'query', 'select', 'insert', 'update', 'connect',
+        // New features
+        'atomic', 'cluster', 'shared', 'iterate', 'keys', 'lookup', 'worker',
+        'compress', 'decompress', 'assert', 'secure', 'pipe', 'stream',
       ]);
       const SKIP_ARTICLES = new Set(['the', 'a', 'an', 'this', 'that']);
       const words = [];
@@ -926,6 +997,11 @@ class HLParser {
     while (this.pos < this.tokens.length) {
       const tok = this._peek();
       if (!tok || stopTokens.includes(tok.value)) break;
+      // Early exit: "end" followed by the block keyword (e.g., "end repeat", "end if")
+      if (tok.value === 'end') {
+        const nextVal = this._peek(1)?.value;
+        if (stopTokens.includes('end') || stopTokens.some(st => st === nextVal)) break;
+      }
       try { const stmt = this._parseStatement(); if (stmt) statements.push(stmt); }
       catch (e) { console.warn('[HLParser] Statement error:', e.message); this.pos++; }
     }
@@ -998,8 +1074,28 @@ class HLParser {
       case 'split':     return this._parseSplitStmt();
       case 'replace':   return this._parseReplaceStmt();
       case 'convert':   return this._parseConvert();
-      case 'break':     { this._next(); return { type: 'break' }; }
-      case 'skip':      { this._next(); return { type: 'skip' };  }
+      case 'break':     { 
+        this._next(); 
+        // Check for optional label: break outerLoop
+        let label = null;
+        const tok = this._peek();
+        if (tok && tok.type === 'IDENT') {
+          label = tok.value;
+          this._next();
+        }
+        return { type: 'break', label }; 
+      }
+      case 'skip':      { 
+        this._next(); 
+        // Check for optional label: skip outerLoop
+        let label = null;
+        const tok = this._peek();
+        if (tok && tok.type === 'IDENT') {
+          label = tok.value;
+          this._next();
+        }
+        return { type: 'skip', label };  
+      }
       case 'return':    return this._parseReturn();
       case 'try':       return this._parseTryCatch();
       // extended JS/Node.js
@@ -1047,6 +1143,7 @@ class HLParser {
         if (this._peek(1)?.value === 'a' && this._peek(2)?.value === 'list') return this._parseCreateList();
         if (this._peek(1)?.value === 'map') return this._parseCreateMap();
         if (this._peek(1)?.value === 'set') return this._parseCreateSet();
+        if (this._peek(1)?.value === 'table' || (this._peek(1)?.value === 'a' && this._peek(2)?.value === 'table')) return this._parseCreateTable();
         return this._parseCreateFolder();
       case 'send':      if (this._peek(1)?.value === 'response' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the' || this._peek(1)?.value === 'file' || this._peek(1)?.value === 'html' || this._peek(1)?.value === 'css') return this._parseSendResponse(); return null;
       case 'when':      if (this._peek(1)?.value === 'receiving' || this._peek(1)?.value === 'the' || this._peek(1)?.value === 'server') return this._parseWhenReceiving(); return null;
@@ -1093,12 +1190,13 @@ class HLParser {
       case 'execute':   return this._parseExecuteCommand();
       case 'shell':     return this._parseShellCommand();
       // WebSockets
-      case 'connect':   return this._parseConnectWebSocket();
+      case 'connect':   return this._parseConnect();
       case 'broadcast': return this._parseBroadcast();
       // Database
       case 'query':     return this._parseQuery();
       case 'insert':    return this._parseInsert();
       case 'select':    return this._parseSelect();
+      case 'update':    return this._parseDbUpdate();
       // Async/await
       case 'await':     return this._parseAwait();
       // Timers (setTimeout/setInterval)
@@ -1266,6 +1364,49 @@ class HLParser {
       case 'abort':     return this._parseAbort();
       case 'textencode': return this._parseTextEncode();
       case 'textdecode': return this._parseTextDecode();
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - NEW IMPLEMENTATIONS
+      // ═══════════════════════════════════════════════════════════════════════
+      // Destructuring: extract name and age from user
+      case 'extract':   return this._parseExtract();
+      // Nullish coalescing: value otherwise default into result
+      case 'otherwise': return this._parseOtherwise();
+      // OS module: get cpu info into cpus
+      case 'cpu':
+      case 'memory':
+      case 'platform':
+      case 'hostname':
+      case 'uptime':    return this._parseOsInfo();
+      // Readline: ask user "Question" into answer
+      case 'ask':       return this._parseAsk();
+      // Compression: compress data into zipped / decompress zipped into data
+      case 'compress':  return this._parseCompress();
+      case 'decompress': return this._parseDecompress();
+      // Assertions: assert condition "error message"
+      case 'assert':    return this._parseAssert();
+      // HTTPS: start secure server on port 443 with cert "cert.pem" and key "key.pem"
+      case 'secure':    return this._parseSecureServer();
+      // Streams: pipe stream from "input.txt" to "output.txt"
+      case 'pipe':      return this._parsePipe();
+      case 'stream':    return this._parseStream();
+      // DNS: lookup "google.com" into address
+      case 'lookup':    return this._parseDnsLookup();
+      // Worker threads: spawn worker "worker.hl" into thread
+      case 'worker':    return this._parseWorker();
+      // Cluster: cluster fork / cluster on "fork" do ... end cluster
+      case 'cluster':   return this._parseCluster();
+      case 'fork':      return this._parseFork();
+      // Labeled statements: label outerLoop / break outerLoop / skip outerLoop
+      case 'label':     return this._parseLabel();
+      case 'labeled':   return this._parseLabel();
+      // SharedArrayBuffer: shared buffer size 1024 into sharedBuf
+      case 'shared':    return this._parseSharedBuffer();
+      case 'sharedbuffer': return this._parseSharedBuffer();
+      // Atomics: atomic add 1 to sharedBuf at 0 / atomic load sharedBuf at 0 into val
+      case 'atomic':    return this._parseAtomics();
+      // Keys iteration: iterate keys of obj into key
+      case 'iterate':   return this._parseIterateKeys();
+      case 'keys':      return this._parseKeysOf();
       default: this._next(); return null;
     }
   }
@@ -1280,7 +1421,11 @@ class HLParser {
       this._next();
       if (this._is('if')) { alternate = [this._parseIf()]; }
       else { alternate = this._parseBody(['end']); if (this._is('end')) this._consume('end'); }
-    } else if (this._is('end')) { this._consume('end'); }
+    } else if (this._is('end')) { 
+      this._consume('end'); 
+      // Consume optional 'if' after 'end'
+      if (this._is('if')) this._next();
+    }
     return { type: 'if', condition, consequent, alternate };
   }
 
@@ -1292,11 +1437,40 @@ class HLParser {
       return this._parseRepeatStr();
     }
     this._consume('repeat');
+    
+    // Handle: repeat async for each item in stream
+    let isAsync = false;
+    if (this._is('async')) {
+      isAsync = true;
+      this._next();
+    }
+    
+    // Handle: repeat for each item in list
+    if (this._is('for')) {
+      this._next(); // consume 'for'
+      if (this._is('each')) this._next(); // consume 'each'
+      const varName = this._consumeIdent();
+      if (this._is('in')) this._next();
+      const iterable = this._consumeIdent();
+      if (this._is('do')) this._next();
+      const body = this._parseBody(['end']);
+      if (this._is('end')) {
+        this._consume('end');
+        // Consume optional 'repeat' after 'end'
+        if (this._is('repeat')) this._next();
+      }
+      return { type: isAsync ? 'forAwait' : 'forEach', varName, iterable, body };
+    }
+    
     // Use _parsePrimary to avoid consuming 'times' as math operator
     const count = this._parsePrimary();
     if (this._is('times')) this._consume('times');
     const body = this._parseBody(['end']);
-    if (this._is('end')) this._consume('end');
+    if (this._is('end')) {
+      this._consume('end');
+      // Consume optional 'repeat' after 'end'
+      if (this._is('repeat')) this._next();
+    }
     return { type: 'repeat', count, body };
   }
 
@@ -1305,7 +1479,11 @@ class HLParser {
     const condition = this._parseCondition();
     if (this._is('do')) this._consume('do');
     const body = this._parseBody(['end']);
-    if (this._is('end')) this._consume('end');
+    if (this._is('end')) {
+      this._consume('end');
+      // Consume optional 'while' after 'end'
+      if (this._is('while')) this._next();
+    }
     return { type: 'while', condition, body };
   }
 
@@ -1599,6 +1777,7 @@ class HLParser {
       
       // Parse properties (with prop1 and prop2...)
       const properties = [];
+      const privateFields = [];
       if (this._is('with')) {
         this._next();
         while (this._peek() && !this._is('then') && !this._is('do') && !this._is('end') && !this._is('define')) {
@@ -1610,12 +1789,72 @@ class HLParser {
       
       if (this._is('then') || this._is('do')) this._next();
       
-      // Parse methods
+      // Parse methods (including static, getters, setters, private fields)
       const methods = [];
+      const staticMethods = [];
+      const getters = [];
+      const setters = [];
       while (this._peek() && !this._is('end')) {
         if (this._is('define')) {
           this._next();
-          if (this._is('method')) {
+          
+          // Private field: define private field count
+          if (this._is('private') && this._peek(1)?.value === 'field') {
+            this._next(); // skip 'private'
+            this._next(); // skip 'field'
+            const fieldName = this._consumeIdent();
+            let defaultValue = null;
+            if (this._is('to') || this._is('as') || this._is('=')) {
+              this._next();
+              defaultValue = this._parseValue();
+            }
+            privateFields.push({ name: fieldName, default: defaultValue });
+            continue;
+          }
+          
+          // Static method: define static method create
+          if (this._is('static')) {
+            this._next();
+            if (this._is('method')) this._next();
+            const methodName = this._consumeIdentOrString();
+            const params = [];
+            if (this._is('with')) {
+              this._next();
+              while (this._peek() && !this._is('then') && !this._is('do') && !this._is('end')) {
+                if (this._is('and') || this._is(',')) { this._next(); continue; }
+                params.push(this._consumeIdent());
+              }
+            }
+            if (this._is('then') || this._is('do')) this._next();
+            const body = this._parseBody(['end']);
+            if (this._is('end')) this._consume('end');
+            staticMethods.push({ name: methodName, params, body, isStatic: true });
+          }
+          // Getter: define getter name
+          else if (this._is('getter')) {
+            this._next();
+            const propName = this._consumeIdentOrString();
+            if (this._is('then') || this._is('do')) this._next();
+            const body = this._parseBody(['end']);
+            if (this._is('end')) this._consume('end');
+            getters.push({ name: propName, body });
+          }
+          // Setter: define setter name with value
+          else if (this._is('setter')) {
+            this._next();
+            const propName = this._consumeIdentOrString();
+            let param = 'value';
+            if (this._is('with')) {
+              this._next();
+              param = this._consumeIdent();
+            }
+            if (this._is('then') || this._is('do')) this._next();
+            const body = this._parseBody(['end']);
+            if (this._is('end')) this._consume('end');
+            setters.push({ name: propName, param, body });
+          }
+          // Regular method
+          else if (this._is('method')) {
             this._next();
             const methodName = this._consumeIdentOrString();
             const params = [];
@@ -1660,7 +1899,7 @@ class HLParser {
       }
       if (this._is('end')) this._consume('end');
       
-      return { type: 'defineClass', className, parentClass, properties, methods };
+      return { type: 'defineClass', className, parentClass, properties, methods, staticMethods, getters, setters, privateFields };
     }
 
     if (['enemy','item','skill','actor','event','zone','status','map'].includes(kind)) {
@@ -1669,24 +1908,47 @@ class HLParser {
 
     // define function "name" with a and b ... end
     // define function "name" with parameters a and b ... end
+    // define function "name" with a defaults to 5 and b ... end (default parameters)
+    // define function "name" with rest items ... end (rest parameters)
     if (kind === 'function') {
       const id = this._consumeIdentOrString();
       const params = [];
+      const defaults = {};
+      let restParam = null;
       if (this._is('with') || this._is('parameters')) {
         this._next();
         // Skip "parameters" if present after "with"
         if (this._is('parameters')) this._next();
         while (this._peek() && !this._is('then') && !this._is('do') &&
                (this._peek().type === 'IDENT' || this._peek().type === 'PREP' || this._peek().type === 'ACTION')) {
+          // Check for rest parameter: "rest items" or "remaining items"
+          if (this._is('rest') || this._is('remaining')) {
+            this._next();
+            restParam = this._consumeIdent();
+            break;
+          }
           // Use simple single-word identifiers for parameters
-          params.push(this._consumeIdent());
+          const paramName = this._consumeIdent();
+          params.push(paramName);
+          
+          // Check for default value: "defaults to X" or "default X"
+          if (this._is('defaults') || this._is('default')) {
+            this._next();
+            if (this._is('to')) this._next();
+            defaults[paramName] = this._parseValue();
+          }
+          
           if (this._is('and') || this._is(',')) this._next(); else break;
         }
       }
       if (this._is('then') || this._is('do')) this._next();
       const body = this._parseBody(['end']);
-      if (this._is('end')) this._consume('end');
-      return { type: 'defineFunction', id, params, body };
+      if (this._is('end')) {
+        this._consume('end');
+        // Skip optional "define" or "function" after "end"
+        if (this._is('define') || this._is('function')) this._next();
+      }
+      return { type: 'defineFunction', id, params, defaults, restParam, body };
     }
 
     // define lambda double with x as x times 2
@@ -1982,6 +2244,18 @@ class HLParser {
 
   _parseDelete() {
     this._consume('delete');
+    // Database: delete from "users" where "age < 18"
+    if (this._is('from')) {
+      this._next();
+      if (this._is('table')) this._next();
+      const table = this._consumeIdentOrString();
+      let where = null;
+      if (this._is('where')) {
+        this._next();
+        where = this._parseValue();
+      }
+      return { type: 'dbDelete', table, where };
+    }
     if (this._is('data'))   { this._next(); return { type: 'deleteData', key: this._consumeIdentOrString() }; }
     if (this._is('record')) { this._next(); const id = this._consumeIdentOrString(); if (this._is('from') || this._is('in')) this._next(); return { type: 'deleteRecord', id, table: this._consumeIdentOrString() }; }
     if (this._is('game'))   { this._next(); return { type: 'deleteData', key: 'game:' + ((this._isType('STRING') || this._isType('IDENT')) ? this._consumeIdentOrString() : 'slot1') }; }
@@ -2465,6 +2739,16 @@ class HLParser {
       const varName = this._consumeIdent();
       if (this._is('into')) this._next();
       return { type: 'getEntries', varName, out: this._consumeIdent() };
+    }
+    // get property from object: get name from user into username
+    // get propName from objName into result
+    const propName = this._consumeIdentOrString();
+    if (this._is('from') || this._is('of') || this._is('in')) {
+      this._next();
+      const objName = this._consumeIdent();
+      if (this._is('into')) this._next();
+      const out = this._consumeIdent();
+      return { type: 'getProperty', objName, propName, out };
     }
     return null;
   }
@@ -3272,12 +3556,21 @@ class HLParser {
     return { type: 'shellCommand', command, variable };
   }
 
-  // ─── WebSockets ───────────────────────────────────────────────────────────
+  // ─── WebSockets / Database Connection ────────────────────────────────────
   // connect to websocket "ws://localhost:8080" into mySocket
-  // connect websocket "ws://localhost:8080" as mySocket
-  _parseConnectWebSocket() {
+  // connect to database "myapp.db"
+  _parseConnect() {
     this._consume('connect');
     if (this._is('to')) this._next();
+    
+    // Database connection
+    if (this._is('database')) {
+      this._next();
+      const dbPath = this._parseValue();
+      return { type: 'dbConnect', dbPath };
+    }
+    
+    // WebSocket connection
     if (this._is('websocket') || this._is('socket')) this._next();
     const url = this._parseValue();
     let variable = null;
@@ -3389,6 +3682,76 @@ class HLParser {
       variable = this._consumeMultiWordName(new Set(['then', 'end']));
     }
     return { type: 'dbSelect', columns, table, where, limit, offset, variable };
+  }
+
+  // create table called users with columns name and age and email
+  // create a table called products with columns id and name and price
+  _parseCreateTable() {
+    this._consume('create');
+    if (this._is('a') || this._is('the')) this._next();
+    this._consume('table');
+    if (this._is('called') || this._is('named')) this._next();
+    const table = this._consumeIdentOrString();
+    const columns = [];
+    if (this._is('with')) {
+      this._next();
+      if (this._is('columns') || this._is('column')) this._next();
+      // Parse column definitions: name, age, email OR name and age and email
+      while (this._peek() && !this._is('then') && !this._is('end') && !this._isType('NEWLINE')) {
+        const colName = this._consumeIdentOrString();
+        let colType = 'TEXT'; // Default type
+        // Check for type: "name as text" or "age as integer"
+        if (this._is('as') || this._is('type')) {
+          this._next();
+          const typeVal = this._consumeIdentOrString().toUpperCase();
+          if (['INTEGER', 'INT', 'NUMBER'].includes(typeVal)) colType = 'INTEGER';
+          else if (['REAL', 'FLOAT', 'DECIMAL'].includes(typeVal)) colType = 'REAL';
+          else if (['BLOB', 'BINARY'].includes(typeVal)) colType = 'BLOB';
+          else colType = 'TEXT';
+        }
+        columns.push({ name: colName, type: colType });
+        // Skip separators
+        if (this._is('and') || this._is(',')) this._next();
+        else break;
+      }
+    }
+    return { type: 'dbCreateTable', table, columns };
+  }
+
+  // update "users" set age to 26 where name is "Alice"
+  // update table "products" set price to 99 and stock to 50 where id is 1
+  _parseDbUpdate() {
+    this._consume('update');
+    if (this._is('table')) this._next();
+    const table = this._consumeIdentOrString();
+    const updates = [];
+    if (this._is('set')) {
+      this._next();
+      // Parse: column to value [and column to value...]
+      while (this._peek() && !this._is('where') && !this._is('then') && !this._is('end')) {
+        const column = this._consumeIdentOrString();
+        if (this._is('to') || this._is('=')) this._next();
+        const value = this._parseValue();
+        updates.push({ column, value });
+        if (this._is('and') || this._is(',')) this._next();
+        else break;
+      }
+    }
+    let where = null;
+    if (this._is('where')) {
+      this._next();
+      // Parse: column is value OR raw condition
+      const col = this._consumeIdentOrString();
+      if (this._is('is') || this._is('=') || this._is('equals')) {
+        this._next();
+        const val = this._parseValue();
+        where = { column: col, value: val };
+      } else {
+        // Raw where clause - put col back conceptually
+        where = { raw: col };
+      }
+    }
+    return { type: 'dbUpdate', table, updates, where };
   }
 
   // ─── Async/Await ──────────────────────────────────────────────────────────
@@ -4680,6 +5043,393 @@ class HLParser {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // MISSING JS FEATURES - NEW PARSERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Destructuring: "extract name and age from user"
+  // "extract name, age, email from user"
+  // "extract [0] and [1] from array into first and second"
+  _parseExtract() {
+    this._consume('extract');
+    const props = [];
+    while (!this._is('from') && this._peek()) {
+      if (this._is('and') || this._is(',')) { this._next(); continue; }
+      props.push(this._consumeIdentOrString());
+    }
+    this._consume('from');
+    const source = this._consumeIdent();
+    let outputs = null;
+    if (this._is('into')) {
+      this._next();
+      outputs = [];
+      while (this._peek() && !this._is('then') && !this._is('end')) {
+        if (this._is('and') || this._is(',')) { this._next(); continue; }
+        outputs.push(this._consumeIdent());
+      }
+    }
+    return { type: 'extract', props, source, outputs };
+  }
+
+  // Nullish coalescing: "value otherwise default into result"
+  // "x otherwise 0 into result"
+  _parseOtherwise() {
+    this._consume('otherwise');
+    // We need the left value - but this is a statement, so we need to re-parse
+    // Actually, better syntax: "coalesce value with default into result"
+    const value = this._parseValue();
+    let fallback = null;
+    if (this._is('with') || this._is('or')) { this._next(); fallback = this._parseValue(); }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'coalesce', value, fallback, out };
+  }
+
+  // OS module info
+  // "cpu info into cpus" or just "cpu into cpus"
+  // "memory info into mem" / "platform into os" / "hostname into host" / "uptime into seconds"
+  _parseOsInfo() {
+    const kind = this._next().value; // cpu, memory, platform, hostname, uptime
+    if (this._is('info')) this._next();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'osInfo', kind, out };
+  }
+
+  // Readline: "ask user 'What is your name?' into answer"
+  // "ask 'Enter value:' into value"
+  _parseAsk() {
+    this._consume('ask');
+    if (this._is('user') || this._is('the')) this._next();
+    const prompt = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'askInput', prompt, out };
+  }
+
+  // Compression: "compress data into zipped"
+  _parseCompress() {
+    this._consume('compress');
+    const data = this._consumeIdent();
+    let method = 'gzip';
+    if (this._is('with') || this._is('using')) {
+      this._next();
+      method = this._consumeIdent();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'compress', data, method, out };
+  }
+
+  // Decompress: "decompress zipped into data"
+  _parseDecompress() {
+    this._consume('decompress');
+    const data = this._consumeIdent();
+    let method = 'gunzip';
+    if (this._is('with') || this._is('using')) {
+      this._next();
+      method = this._consumeIdent();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'decompress', data, method, out };
+  }
+
+  // Assert: "assert x is greater than 0 with message 'x must be positive'"
+  // "assert condition 'error message'"
+  _parseAssert() {
+    this._consume('assert');
+    const condition = this._parseCondition();
+    let message = null;
+    if (this._is('with') && this._peek(1)?.value === 'message') {
+      this._next(); this._next(); // consume 'with message'
+      message = this._parseValue();
+    } else if (this._peek()?.type === 'STRING') {
+      message = this._parseValue();
+    }
+    return { type: 'assertion', condition, message };
+  }
+
+  // HTTPS server: "start secure server on port 443 with cert 'cert.pem' and key 'key.pem'"
+  _parseSecureServer() {
+    this._consume('secure');
+    if (this._is('server')) this._next();
+    let port = 443;
+    if (this._is('on')) {
+      this._next();
+      if (this._is('port')) this._next();
+      port = this._parseValue();
+    }
+    let cert = null, key = null;
+    if (this._is('with')) {
+      this._next();
+      while (this._peek() && !this._is('then') && !this._is('end')) {
+        if (this._is('cert') || this._is('certificate')) {
+          this._next();
+          cert = this._parseValue();
+        } else if (this._is('key')) {
+          this._next();
+          key = this._parseValue();
+        }
+        if (this._is('and')) this._next();
+        else break;
+      }
+    }
+    return { type: 'secureServer', port, cert, key };
+  }
+
+  // Pipe streams: "pipe stream from 'input.txt' to 'output.txt'"
+  _parsePipe() {
+    this._consume('pipe');
+    if (this._is('stream')) this._next();
+    if (this._is('from')) this._next();
+    const input = this._parseValue();
+    if (this._is('to') || this._is('into')) this._next();
+    const output = this._parseValue();
+    return { type: 'pipeStream', input, output };
+  }
+
+  // Read stream: "stream 'file.txt' into data"
+  _parseStream() {
+    this._consume('stream');
+    if (this._is('read') || this._is('from')) this._next();
+    const file = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'readStream', file, out };
+  }
+
+  // DNS lookup: "lookup 'google.com' into address"
+  _parseDnsLookup() {
+    this._consume('lookup');
+    const host = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'dnsLookup', host, out };
+  }
+
+  // Worker threads: "worker 'worker.hl' into thread"
+  _parseWorker() {
+    this._consume('worker');
+    const script = this._parseValue();
+    let workerData = null;
+    if (this._is('with')) {
+      this._next();
+      if (this._is('data')) this._next();
+      workerData = this._parseValue();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'spawnWorker', script, workerData, out };
+  }
+
+  // Cluster: "cluster fork" / "cluster on 'fork' do ... end cluster" / "cluster workers into count"
+  _parseCluster() {
+    this._consume('cluster');
+    
+    // cluster workers into count - get worker count
+    if (this._is('workers')) {
+      this._next();
+      if (this._is('into') || this._is('called')) this._next();
+      const out = this._consumeIdent();
+      return { type: 'clusterWorkers', out };
+    }
+    
+    // cluster is primary into isPrimary / cluster is master into isMaster
+    if (this._is('is')) {
+      this._next();
+      const checkType = this._peek()?.value; // 'primary' or 'master'
+      this._next();
+      if (this._is('into') || this._is('called')) this._next();
+      const out = this._consumeIdent();
+      return { type: 'clusterIsPrimary', out };
+    }
+    
+    // cluster fork - fork a worker
+    if (this._is('fork')) {
+      this._next();
+      let out = null;
+      if (this._is('into') || this._is('called')) {
+        this._next();
+        out = this._consumeIdent();
+      }
+      return { type: 'clusterFork', out };
+    }
+    
+    // cluster on "message" do ... end cluster - handle cluster events
+    if (this._is('on')) {
+      this._next();
+      const event = this._parseValue();
+      if (this._is('do') || this._is('then')) this._next();
+      const body = this._parseBody(['end']);
+      if (this._is('end')) {
+        this._next();
+        if (this._is('cluster')) this._next();
+      }
+      return { type: 'clusterOn', event, body };
+    }
+    
+    return null;
+  }
+  
+  // Fork: "fork worker" / "fork into worker"
+  _parseFork() {
+    this._consume('fork');
+    if (this._is('worker')) this._next();
+    let out = null;
+    if (this._is('into') || this._is('called')) {
+      this._next();
+      out = this._consumeIdent();
+    }
+    return { type: 'clusterFork', out };
+  }
+  
+  // Label: "label outerLoop" - creates a label for break/continue
+  _parseLabel() {
+    if (this._is('label') || this._is('labeled')) this._next();
+    const labelName = this._consumeIdent();
+    // Parse the labeled statement (usually a loop)
+    if (this._is('repeat')) {
+      const loop = this._parseRepeat();
+      loop.label = labelName;
+      return loop;
+    }
+    if (this._is('while')) {
+      const loop = this._parseWhile();
+      loop.label = labelName;
+      return loop;
+    }
+    if (this._is('for')) {
+      // Handle for-in
+      this._next();
+      if (this._is('each')) {
+        this._next();
+        if (this._is('key')) {
+          // for each key in obj
+          this._next();
+          if (this._is('in') || this._is('of')) this._next();
+          const obj = this._consumeIdent();
+          if (this._is('do')) this._next();
+          const body = this._parseBody(['end']);
+          if (this._is('end')) this._next();
+          return { type: 'forIn', varName: 'key', obj, body, label: labelName };
+        }
+      }
+    }
+    return { type: 'labelDef', name: labelName };
+  }
+  
+  // SharedArrayBuffer: "shared buffer size 1024 into sharedBuf"
+  _parseSharedBuffer() {
+    if (this._is('shared')) this._next();
+    if (this._is('buffer') || this._is('sharedbuffer')) this._next();
+    if (this._is('size') || this._is('of')) this._next();
+    const size = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'sharedBuffer', size, out };
+  }
+  
+  // Atomics: "atomic add 1 to arr at 0" / "atomic load arr at 0 into val"
+  _parseAtomics() {
+    this._consume('atomic');
+    const op = this._peek()?.value; // add, sub, and, or, xor, load, store, exchange, compareExchange, wait, notify
+    this._next();
+    
+    if (op === 'load') {
+      // atomic load arr at index into val
+      const arr = this._consumeIdent();
+      if (this._is('at')) this._next();
+      const index = this._parseValue();
+      if (this._is('into') || this._is('called')) this._next();
+      const out = this._consumeIdent();
+      return { type: 'atomicOp', op: 'load', arr, index, out };
+    }
+    
+    if (op === 'store') {
+      // atomic store value to arr at index
+      const value = this._parseValue();
+      if (this._is('to') || this._is('in')) this._next();
+      const arr = this._consumeIdent();
+      if (this._is('at')) this._next();
+      const index = this._parseValue();
+      return { type: 'atomicOp', op: 'store', arr, index, value };
+    }
+    
+    if (op === 'wait') {
+      // atomic wait on arr at index for value with timeout
+      if (this._is('on')) this._next();
+      const arr = this._consumeIdent();
+      if (this._is('at')) this._next();
+      const index = this._parseValue();
+      if (this._is('for')) this._next();
+      const value = this._parseValue();
+      let timeout = null;
+      if (this._is('with') || this._is('timeout')) {
+        this._next();
+        if (this._is('timeout')) this._next();
+        timeout = this._parseValue();
+      }
+      if (this._is('into') || this._is('called')) this._next();
+      const out = this._consumeIdent();
+      return { type: 'atomicOp', op: 'wait', arr, index, value, timeout, out };
+    }
+    
+    if (op === 'notify') {
+      // atomic notify arr at index count N
+      const arr = this._consumeIdent();
+      if (this._is('at')) this._next();
+      const index = this._parseValue();
+      let count = { type: 'number', value: Infinity };
+      if (this._is('count') || this._is('with')) {
+        this._next();
+        if (this._is('count')) this._next();
+        count = this._parseValue();
+      }
+      return { type: 'atomicOp', op: 'notify', arr, index, count };
+    }
+    
+    // Arithmetic: atomic add/sub/and/or/xor value to arr at index
+    const value = this._parseValue();
+    if (this._is('to') || this._is('in')) this._next();
+    const arr = this._consumeIdent();
+    if (this._is('at')) this._next();
+    const index = this._parseValue();
+    let out = null;
+    if (this._is('into') || this._is('called')) {
+      this._next();
+      out = this._consumeIdent();
+    }
+    return { type: 'atomicOp', op, arr, index, value, out };
+  }
+  
+  // Iterate keys: "iterate keys of obj into key" / "for each key in obj"
+  _parseIterateKeys() {
+    this._consume('iterate');
+    if (this._is('keys') || this._is('over')) this._next();
+    if (this._is('of') || this._is('in')) this._next();
+    const obj = this._consumeIdent();
+    if (this._is('do')) this._next();
+    const body = this._parseBody(['end']);
+    if (this._is('end')) {
+      this._next();
+      // Consume optional 'iterate' after 'end'
+      if (this._is('iterate')) this._next();
+    }
+    // Default loop variable is 'key'
+    return { type: 'forIn', varName: 'key', obj, body };
+  }
+  
+  // Keys of: "keys of obj into keyList"
+  _parseKeysOf() {
+    this._consume('keys');
+    if (this._is('of') || this._is('from')) this._next();
+    const obj = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'keysOf', obj, out };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // ENGLISH-READABLE PARSERS
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -5132,11 +5882,43 @@ class HLInterpreter {
       return valNode.elements.map(el => this._resolveValue(el));
     }
     // Object literal: {key: value, ...}
+    // Also handles: shorthand {name}, computed {[key]: value}, method shorthand {greet() {}}
     if (valNode.type === 'object') {
       const obj = {};
       const pairs = valNode.pairs || valNode.props || [];
+      const w = this.world;
       for (const pair of pairs) {
-        obj[pair.key] = this._resolveValue(pair.value);
+        // Determine the key (computed or literal)
+        let key;
+        if (pair.isComputed) {
+          key = this._resolveValue(pair.key);
+        } else {
+          key = pair.key;
+        }
+        
+        // Handle method shorthand
+        if (pair.isMethod) {
+          const methodParams = pair.methodParams || [];
+          const methodBody = pair.methodBody || [];
+          obj[key] = async (...args) => {
+            const savedVars = w ? { ...w._vars } : {};
+            if (w) {
+              methodParams.forEach((p, i) => { w._vars[p] = args[i]; });
+            }
+            let retVal = null;
+            try {
+              await this._executeBody(methodBody);
+            } catch (e) {
+              if (e?.__hlReturn) retVal = e.value;
+              else throw e;
+            }
+            if (w) w._vars = savedVars;
+            return retVal;
+          };
+        } else {
+          // Regular value or shorthand
+          obj[key] = this._resolveValue(pair.value);
+        }
       }
       return obj;
     }
@@ -5494,8 +6276,10 @@ class HLInterpreter {
 
       // ── JS/Node.js feature statements ──────────────────────────────────
 
-      case 'break': throw _HL_BREAK;
-      case 'skip':  throw _HL_SKIP;
+      case 'break': 
+        throw stmt.label ? { __hlBreak: true, label: stmt.label } : _HL_BREAK;
+      case 'skip':  
+        throw stmt.label ? { __hlContinue: true, label: stmt.label } : _HL_SKIP;
 
       // for each item in list do ... end
       case 'forEach': {
@@ -5505,6 +6289,30 @@ class HLInterpreter {
           if (w) w._vars[stmt.varName] = item;
           try { await this._executeBody(stmt.body); }
           catch(e) { if (e === _HL_BREAK) break; if (e === _HL_SKIP) continue; throw e; }
+        }
+        break;
+      }
+      
+      // for await ... of (async iteration)
+      case 'forAwait': {
+        const iterable = (w && w._vars) ? w._vars[stmt.iterable] : null;
+        if (iterable && typeof iterable[Symbol.asyncIterator] === 'function') {
+          // Async iterable (streams, etc.)
+          for await (const item of iterable) {
+            if (w) w._vars[stmt.varName] = item;
+            try { await this._executeBody(stmt.body); }
+            catch(e) { if (e === _HL_BREAK) break; if (e === _HL_SKIP) continue; throw e; }
+          }
+        } else {
+          // Fall back to regular iteration for arrays/promises
+          const arr = Array.isArray(iterable) ? iterable : (iterable != null ? [iterable] : []);
+          for (const item of arr) {
+            // If items are promises, await them
+            const resolvedItem = item instanceof Promise ? await item : item;
+            if (w) w._vars[stmt.varName] = resolvedItem;
+            try { await this._executeBody(stmt.body); }
+            catch(e) { if (e === _HL_BREAK) break; if (e === _HL_SKIP) continue; throw e; }
+          }
         }
         break;
       }
@@ -5986,6 +6794,20 @@ class HLInterpreter {
         break;
       }
 
+      // ── Property access: get propName from objName into result ─────────────
+      case 'getProperty': {
+        if (w) {
+          const obj = w._vars[stmt.objName];
+          const propName = typeof stmt.propName === 'string' ? stmt.propName : this._resolveValue(stmt.propName);
+          if (obj && typeof obj === 'object') {
+            w._vars[stmt.out] = obj[propName] ?? null;
+          } else {
+            w._vars[stmt.out] = null;
+          }
+        }
+        break;
+      }
+
       // ── Set operations ─────────────────────────────────────────────────────
       case 'createSet': {
         if (w) w._vars[stmt.name] = new Set();
@@ -6030,7 +6852,12 @@ class HLInterpreter {
 
       // ── User-defined functions ────────────────────────────────────────────
       case 'defineFunction': {
-        this._functions.set(stmt.id, { params: stmt.params || [], body: stmt.body || [] });
+        this._functions.set(stmt.id, { 
+          params: stmt.params || [], 
+          body: stmt.body || [],
+          defaults: stmt.defaults || {},
+          restParam: stmt.restParam || null
+        });
         break;
       }
       case 'callFunction': {
@@ -6053,7 +6880,24 @@ class HLInterpreter {
         if (!_fn) { if (stmt.out && w) w._vars[stmt.out] = null; break; }
         const w2 = w;
         const _savedVars2 = w2 ? { ...w2._vars } : {};
-        if (w2) { (_fn.params || []).forEach((p, i) => { w2._vars[p] = this._resolveValue((stmt.args || [])[i]); }); }
+        if (w2) {
+          const args = stmt.args || [];
+          // Handle regular params with default values
+          (_fn.params || []).forEach((p, i) => {
+            if (args[i] !== undefined) {
+              w2._vars[p] = this._resolveValue(args[i]);
+            } else if (_fn.defaults && _fn.defaults[p] !== undefined) {
+              w2._vars[p] = this._resolveValue(_fn.defaults[p]);
+            } else {
+              w2._vars[p] = undefined;
+            }
+          });
+          // Handle rest parameter
+          if (_fn.restParam) {
+            const restArgs = args.slice(_fn.params.length).map(a => this._resolveValue(a));
+            w2._vars[_fn.restParam] = restArgs;
+          }
+        }
         let _retVal2 = null;
         try {
           await this._executeBody(_fn.body);
@@ -6356,8 +7200,35 @@ class HLInterpreter {
         this._classes.set(stmt.className, {
           parentClass: stmt.parentClass,
           properties: stmt.properties || [],
-          methods: stmt.methods || []
+          methods: stmt.methods || [],
+          staticMethods: stmt.staticMethods || [],
+          getters: stmt.getters || [],
+          setters: stmt.setters || [],
+          privateFields: stmt.privateFields || []
         });
+        
+        // Create class constructor function and static methods on it
+        if (w) {
+          const classDef = this._classes.get(stmt.className);
+          const classObj = { __hlClass__: stmt.className };
+          
+          // Add static methods to class object
+          for (const staticMethod of (classDef.staticMethods || [])) {
+            classObj[staticMethod.name] = async (...callArgs) => {
+              const savedVars = w ? { ...w._vars } : {};
+              if (w) {
+                (staticMethod.params || []).forEach((p, i) => { w._vars[p] = callArgs[i]; });
+              }
+              let retVal = null;
+              try { await this._executeBody(staticMethod.body); }
+              catch (e) { if (e?.__hlReturn) retVal = e.value; else throw e; }
+              if (w) w._vars = savedVars;
+              return retVal;
+            };
+          }
+          
+          w._vars[stmt.className] = classObj;
+        }
         break;
       }
 
@@ -6368,6 +7239,15 @@ class HLInterpreter {
         
         // Create instance object
         const instance = { __class__: stmt.className };
+        
+        // Initialize private fields with default values
+        const privateSymbols = {};
+        for (const field of (classDef.privateFields || [])) {
+          const sym = Symbol(field.name);
+          privateSymbols[field.name] = sym;
+          instance[sym] = field.default ? this._resolveValue(field.default) : null;
+        }
+        instance.__privateFields__ = privateSymbols;
         
         // Set properties from args
         const args = (stmt.args || []).map(a => this._resolveValue(a));
@@ -6381,6 +7261,7 @@ class HLInterpreter {
           const savedVars = w ? { ...w._vars } : {};
           if (w) {
             w._vars['this'] = instance;
+            w._vars['my'] = instance;
             (constructor.params || []).forEach((p, i) => { w._vars[p] = args[i]; });
           }
           try { await this._executeBody(constructor.body); }
@@ -6395,6 +7276,7 @@ class HLInterpreter {
               const savedVars = w ? { ...w._vars } : {};
               if (w) {
                 w._vars['this'] = instance;
+                w._vars['my'] = instance;
                 (method.params || []).forEach((p, i) => { w._vars[p] = callArgs[i]; });
               }
               let retVal = null;
@@ -6404,6 +7286,62 @@ class HLInterpreter {
               return retVal;
             };
           }
+        }
+        
+        // Add getters
+        for (const getter of (classDef.getters || [])) {
+          Object.defineProperty(instance, getter.name, {
+            get: () => {
+              let result = null;
+              const savedVars = w ? { ...w._vars } : {};
+              if (w) {
+                w._vars['this'] = instance;
+                w._vars['my'] = instance;
+              }
+              // Execute getter body synchronously for now
+              // (getters can't be async in JS)
+              // Store return value
+              try {
+                for (const s of getter.body) {
+                  if (s.type === 'returnStmt') {
+                    result = this._resolveValue(s.value);
+                    break;
+                  }
+                }
+              } catch (e) {
+                if (e?.__hlReturn) result = e.value;
+              }
+              if (w) w._vars = savedVars;
+              return result;
+            },
+            enumerable: true,
+            configurable: true
+          });
+        }
+        
+        // Add setters
+        for (const setter of (classDef.setters || [])) {
+          const existingDescriptor = Object.getOwnPropertyDescriptor(instance, setter.name) || {};
+          Object.defineProperty(instance, setter.name, {
+            get: existingDescriptor.get,
+            set: (value) => {
+              const savedVars = w ? { ...w._vars } : {};
+              if (w) {
+                w._vars['this'] = instance;
+                w._vars['my'] = instance;
+                w._vars[setter.param] = value;
+              }
+              // Execute setter body
+              // setters also can't be async, but we'll run the statements
+              (async () => {
+                try { await this._executeBody(setter.body); }
+                catch (e) { if (!e?.__hlReturn) console.error(e); }
+              })();
+              if (w) w._vars = savedVars;
+            },
+            enumerable: true,
+            configurable: true
+          });
         }
         
         if (stmt.variable && w) w._vars[stmt.variable] = instance;
@@ -6684,6 +7622,112 @@ class HLInterpreter {
         } catch (e) {
           console.warn(`[HyperianLang] Select error: ${e.message}`);
           if (stmt.variable) w._vars[stmt.variable] = [];
+        }
+        break;
+      }
+
+      case 'dbConnect': {
+        if (!w || typeof require === 'undefined') break;
+        const dbPath = String(this._resolveValue(stmt.dbPath));
+        
+        let Database;
+        try { Database = require('better-sqlite3'); }
+        catch (e) { 
+          console.warn('[HyperianLang] better-sqlite3 not found. Install with: npm install better-sqlite3');
+          break;
+        }
+        
+        try {
+          this._db = new Database(dbPath);
+          console.log(`[HyperianLang] Connected to database: ${dbPath}`);
+        } catch (e) {
+          console.warn(`[HyperianLang] Database connection error: ${e.message}`);
+        }
+        break;
+      }
+
+      case 'dbCreateTable': {
+        if (!w || typeof require === 'undefined') break;
+        const table = String(this._resolveValue(stmt.table));
+        const columns = stmt.columns || [];
+        
+        if (columns.length === 0) {
+          console.warn('[HyperianLang] Cannot create table without columns');
+          break;
+        }
+        
+        const colDefs = columns.map(c => `${c.name} ${c.type}`).join(', ');
+        const sql = `CREATE TABLE IF NOT EXISTS ${table} (id INTEGER PRIMARY KEY AUTOINCREMENT, ${colDefs})`;
+        
+        let Database;
+        try { Database = require('better-sqlite3'); }
+        catch (e) { 
+          console.warn('[HyperianLang] better-sqlite3 not found. Install with: npm install better-sqlite3');
+          break;
+        }
+        
+        try {
+          if (!this._db) this._db = new Database('hyperianlang.db');
+          this._db.exec(sql);
+          console.log(`[HyperianLang] Created table: ${table}`);
+        } catch (e) {
+          console.warn(`[HyperianLang] Create table error: ${e.message}`);
+        }
+        break;
+      }
+
+      case 'dbUpdate': {
+        if (!w || typeof require === 'undefined') break;
+        const table = String(this._resolveValue(stmt.table));
+        const updates = stmt.updates || [];
+        
+        if (updates.length === 0) break;
+        
+        const setClauses = updates.map(u => `${u.column} = ?`).join(', ');
+        const values = updates.map(u => this._resolveValue(u.value));
+        let sql = `UPDATE ${table} SET ${setClauses}`;
+        
+        if (stmt.where) {
+          if (stmt.where.column) {
+            sql += ` WHERE ${stmt.where.column} = ?`;
+            values.push(this._resolveValue(stmt.where.value));
+          } else if (stmt.where.raw) {
+            sql += ` WHERE ${stmt.where.raw}`;
+          }
+        }
+        
+        let Database;
+        try { Database = require('better-sqlite3'); }
+        catch (e) { break; }
+        
+        try {
+          if (!this._db) this._db = new Database('hyperianlang.db');
+          this._db.prepare(sql).run(...values);
+        } catch (e) {
+          console.warn(`[HyperianLang] Update error: ${e.message}`);
+        }
+        break;
+      }
+
+      case 'dbDelete': {
+        if (!w || typeof require === 'undefined') break;
+        const table = String(this._resolveValue(stmt.table));
+        let sql = `DELETE FROM ${table}`;
+        
+        if (stmt.where) {
+          const where = this._resolveValue(stmt.where);
+          sql += ` WHERE ${where}`;
+        }
+        
+        let Database;
+        try { Database = require('better-sqlite3'); }
+        catch (e) { break; }
+        
+        try {
+          if (!this._db) this._db = new Database('hyperianlang.db');
+          this._db.prepare(sql).run();
+        } catch (e) {
+          console.warn(`[HyperianLang] Delete error: ${e.message}`);
         }
         break;
       }
@@ -7668,7 +8712,7 @@ class HLInterpreter {
 
       case 'consoleAssert': {
         if (!w) break;
-        const condition = this._evalCondition(stmt.condition, w, {});
+        const condition = this._evaluateCondition(stmt.condition);
         const message = stmt.message ? this._resolveValue(stmt.message) : undefined;
         console.assert(condition, message);
         break;
@@ -7722,6 +8766,388 @@ class HLInterpreter {
         const encoding = stmt.encoding || 'utf-8';
         const decoder = new TextDecoder(encoding);
         w._vars[stmt.out] = decoder.decode(bytes);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - NEW HANDLERS
+      // ═══════════════════════════════════════════════════════════════════════
+
+      // Destructuring: extract name and age from user
+      case 'extract': {
+        if (!w) break;
+        const source = w._vars[stmt.source];
+        if (source && typeof source === 'object') {
+          const outputs = stmt.outputs || stmt.props;
+          for (let i = 0; i < stmt.props.length; i++) {
+            const prop = stmt.props[i];
+            const outVar = outputs[i] || prop;
+            if (Array.isArray(source)) {
+              // Array destructuring with index
+              const idx = parseInt(prop.replace(/[\[\]]/g, ''), 10);
+              w._vars[outVar] = !isNaN(idx) ? source[idx] : source[prop];
+            } else {
+              w._vars[outVar] = source[prop];
+            }
+          }
+        }
+        break;
+      }
+
+      // Nullish coalescing: coalesce value with default into result
+      case 'coalesce': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        const fallback = stmt.fallback ? this._resolveValue(stmt.fallback) : null;
+        w._vars[stmt.out] = value ?? fallback;
+        break;
+      }
+
+      // OS module info
+      case 'osInfo': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const os = require('os');
+        switch (stmt.kind) {
+          case 'cpu':
+            w._vars[stmt.out] = os.cpus();
+            break;
+          case 'memory':
+            w._vars[stmt.out] = {
+              total: os.totalmem(),
+              free: os.freemem(),
+              used: os.totalmem() - os.freemem()
+            };
+            break;
+          case 'platform':
+            w._vars[stmt.out] = os.platform();
+            break;
+          case 'hostname':
+            w._vars[stmt.out] = os.hostname();
+            break;
+          case 'uptime':
+            w._vars[stmt.out] = os.uptime();
+            break;
+        }
+        break;
+      }
+
+      // Readline: ask user "Question?" into answer
+      case 'askInput': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const readline = require('readline');
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+        const prompt = this._resolveValue(stmt.prompt);
+        const answer = await new Promise(resolve => {
+          rl.question(prompt + ' ', (ans) => {
+            rl.close();
+            resolve(ans);
+          });
+        });
+        w._vars[stmt.out] = answer;
+        break;
+      }
+
+      // Compression: compress data into zipped
+      case 'compress': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const zlib = require('zlib');
+        const data = w._vars[stmt.data];
+        const method = stmt.method || 'gzip';
+        const buffer = typeof data === 'string' ? Buffer.from(data) : data;
+        let result;
+        if (method === 'gzip') {
+          result = zlib.gzipSync(buffer);
+        } else if (method === 'deflate') {
+          result = zlib.deflateSync(buffer);
+        } else if (method === 'brotli') {
+          result = zlib.brotliCompressSync(buffer);
+        } else {
+          result = zlib.gzipSync(buffer);
+        }
+        w._vars[stmt.out] = result;
+        break;
+      }
+
+      // Decompress: decompress zipped into data
+      case 'decompress': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const zlib = require('zlib');
+        const data = w._vars[stmt.data];
+        const method = stmt.method || 'gunzip';
+        let result;
+        if (method === 'gunzip' || method === 'gzip') {
+          result = zlib.gunzipSync(data);
+        } else if (method === 'inflate' || method === 'deflate') {
+          result = zlib.inflateSync(data);
+        } else if (method === 'brotli') {
+          result = zlib.brotliDecompressSync(data);
+        } else {
+          result = zlib.gunzipSync(data);
+        }
+        w._vars[stmt.out] = result.toString();
+        break;
+      }
+
+      // Assert: assert condition "error message"
+      case 'assertion': {
+        const condResult = this._evaluateCondition(stmt.condition);
+        if (!condResult) {
+          const msg = stmt.message ? this._resolveValue(stmt.message) : 'Assertion failed';
+          throw new Error(`[Assertion] ${msg}`);
+        }
+        break;
+      }
+
+      // HTTPS server
+      case 'secureServer': {
+        if (typeof require === 'undefined') break;
+        const https = require('https');
+        const fs = require('fs');
+        const port = this._resolveValue(stmt.port);
+        const certPath = this._resolveValue(stmt.cert);
+        const keyPath = this._resolveValue(stmt.key);
+        const options = {
+          cert: fs.readFileSync(certPath),
+          key: fs.readFileSync(keyPath)
+        };
+        const server = https.createServer(options, (req, res) => {
+          if (!this._httpRoutes) this._httpRoutes = new Map();
+          const route = this._httpRoutes.get(req.url);
+          if (route) {
+            route(req, res);
+          } else {
+            res.writeHead(404);
+            res.end('Not Found');
+          }
+        });
+        server.listen(port);
+        console.log(`[HyperianLang] HTTPS server started on port ${port}`);
+        break;
+      }
+
+      // Pipe streams
+      case 'pipeStream': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const fs = require('fs');
+        const input = this._resolveValue(stmt.input);
+        const output = this._resolveValue(stmt.output);
+        const readStream = fs.createReadStream(input);
+        const writeStream = fs.createWriteStream(output);
+        await new Promise((resolve, reject) => {
+          readStream.pipe(writeStream);
+          writeStream.on('finish', resolve);
+          writeStream.on('error', reject);
+        });
+        console.log(`[HyperianLang] Piped ${input} to ${output}`);
+        break;
+      }
+
+      // Read stream
+      case 'readStream': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const fs = require('fs');
+        const file = this._resolveValue(stmt.file);
+        const chunks = [];
+        const readStream = fs.createReadStream(file);
+        await new Promise((resolve, reject) => {
+          readStream.on('data', chunk => chunks.push(chunk));
+          readStream.on('end', resolve);
+          readStream.on('error', reject);
+        });
+        w._vars[stmt.out] = Buffer.concat(chunks).toString();
+        break;
+      }
+
+      // DNS lookup
+      case 'dnsLookup': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const dns = require('dns');
+        const host = this._resolveValue(stmt.host);
+        const address = await new Promise((resolve, reject) => {
+          dns.lookup(host, (err, addr) => {
+            if (err) reject(err);
+            else resolve(addr);
+          });
+        });
+        w._vars[stmt.out] = address;
+        break;
+      }
+
+      // Worker threads
+      case 'spawnWorker': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const { Worker } = require('worker_threads');
+        const fs = require('fs');
+        const path = require('path');
+        let script = this._resolveValue(stmt.script);
+        if (!script.endsWith('.js')) {
+          // If it's an .hl file, we need to create a wrapper
+          if (script.endsWith('.hl')) {
+            const hlSource = fs.readFileSync(script, 'utf8');
+            const wrapperCode = `
+              const { HLLexer, HLParser, HLInterpreter } = require('${path.resolve(__dirname, 'core.js')}');
+              const source = ${JSON.stringify(hlSource)};
+              const tokens = new HLLexer(source).tokenize();
+              const ast = new HLParser(tokens).parse();
+              const interp = new HLInterpreter(null);
+              interp.load(ast);
+              interp.run();
+            `;
+            const tempFile = path.join(require('os').tmpdir(), `hl_worker_${Date.now()}.js`);
+            fs.writeFileSync(tempFile, wrapperCode);
+            script = tempFile;
+          }
+        }
+        const workerData = stmt.workerData ? this._resolveValue(stmt.workerData) : {};
+        const worker = new Worker(script, { workerData });
+        w._vars[stmt.out] = worker;
+        break;
+      }
+
+      // Cluster module
+      case 'clusterWorkers': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const cluster = require('cluster');
+        const os = require('os');
+        w._vars[stmt.out] = Object.keys(cluster.workers || {}).length || os.cpus().length;
+        break;
+      }
+      
+      case 'clusterIsPrimary': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const cluster = require('cluster');
+        w._vars[stmt.out] = cluster.isPrimary || cluster.isMaster;
+        break;
+      }
+      
+      case 'clusterFork': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const cluster = require('cluster');
+        const worker = cluster.fork();
+        if (stmt.out) w._vars[stmt.out] = worker;
+        break;
+      }
+      
+      case 'clusterOn': {
+        if (!w) break;
+        if (typeof require === 'undefined') break;
+        const cluster = require('cluster');
+        const event = this._resolveValue(stmt.event);
+        cluster.on(event, async (...args) => {
+          const savedVars = { ...w._vars };
+          w._vars['message'] = args[0];
+          w._vars['worker'] = args[1] || args[0];
+          await this._executeBody(stmt.body);
+          w._vars = savedVars;
+        });
+        break;
+      }
+      
+      // For-in loop (iterate object keys)
+      case 'forIn': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj] || {};
+        const keys = Object.keys(obj);
+        const savedLabel = w._currentLabel;
+        w._currentLabel = stmt.label || null;
+        for (const key of keys) {
+          w._vars[stmt.varName] = key;
+          try {
+            await this._executeBody(stmt.body);
+          } catch (e) {
+            if (e?.__hlBreak) {
+              if (e.label && e.label !== stmt.label) throw e;
+              break;
+            }
+            if (e?.__hlContinue) {
+              if (e.label && e.label !== stmt.label) throw e;
+              continue;
+            }
+            throw e;
+          }
+        }
+        w._currentLabel = savedLabel;
+        break;
+      }
+      
+      // Keys of object
+      case 'keysOf': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj] || {};
+        w._vars[stmt.out] = Object.keys(obj);
+        break;
+      }
+      
+      // SharedArrayBuffer
+      case 'sharedBuffer': {
+        if (!w) break;
+        const size = this._resolveValue(stmt.size);
+        const buffer = new SharedArrayBuffer(size);
+        w._vars[stmt.out] = new Int32Array(buffer);
+        break;
+      }
+      
+      // Atomics operations
+      case 'atomicOp': {
+        if (!w) break;
+        const arr = w._vars[stmt.arr];
+        const index = this._resolveValue(stmt.index);
+        
+        switch (stmt.op) {
+          case 'load':
+            w._vars[stmt.out] = Atomics.load(arr, index);
+            break;
+          case 'store':
+            Atomics.store(arr, index, this._resolveValue(stmt.value));
+            break;
+          case 'add':
+            const addResult = Atomics.add(arr, index, this._resolveValue(stmt.value));
+            if (stmt.out) w._vars[stmt.out] = addResult;
+            break;
+          case 'sub':
+            const subResult = Atomics.sub(arr, index, this._resolveValue(stmt.value));
+            if (stmt.out) w._vars[stmt.out] = subResult;
+            break;
+          case 'and':
+            const andResult = Atomics.and(arr, index, this._resolveValue(stmt.value));
+            if (stmt.out) w._vars[stmt.out] = andResult;
+            break;
+          case 'or':
+            const orResult = Atomics.or(arr, index, this._resolveValue(stmt.value));
+            if (stmt.out) w._vars[stmt.out] = orResult;
+            break;
+          case 'xor':
+            const xorResult = Atomics.xor(arr, index, this._resolveValue(stmt.value));
+            if (stmt.out) w._vars[stmt.out] = xorResult;
+            break;
+          case 'exchange':
+            const exchResult = Atomics.exchange(arr, index, this._resolveValue(stmt.value));
+            if (stmt.out) w._vars[stmt.out] = exchResult;
+            break;
+          case 'wait':
+            const waitResult = Atomics.wait(arr, index, this._resolveValue(stmt.value), 
+              stmt.timeout ? this._resolveValue(stmt.timeout) : undefined);
+            w._vars[stmt.out] = waitResult;
+            break;
+          case 'notify':
+            const count = this._resolveValue(stmt.count);
+            Atomics.notify(arr, index, count);
+            break;
+        }
         break;
       }
     }

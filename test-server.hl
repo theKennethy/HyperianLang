@@ -1,6 +1,0 @@
-when the server receives a "GET" request to "/" then
-  send a response with status 200 and {"hello": "world"}
-end
-
-log "Starting server..."
-start the server on port 3000

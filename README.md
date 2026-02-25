@@ -1,8 +1,8 @@
 # HyperianLang
 
-**Natural English-style scripting language for Node.js and browsers.**
+**Natural English-style programming language with full JavaScript/Node.js parity.**
 
-Write code that reads like plain English — no cryptic symbols, no complex syntax. A general-purpose scripting language perfect for beginners, rapid prototyping, automation, and anyone who wants readable, maintainable code.
+Write code that reads like plain English — no cryptic symbols, no complex syntax. HyperianLang compiles to JavaScript and supports everything vanilla JS and Node.js can do.
 
 ```hyperianlang
 let the user count be 100
@@ -10,58 +10,26 @@ let the growth rate be 1.5
 
 if the user count is greater than 50 then
   let the projected users be the user count times the growth rate
-  print "Projected users: "
-  print the projected users
-end
+  say "Projected users: " plus the projected users
+end if
 ```
 
 ## Features
 
 - **Natural English Syntax** — Write `let the item count be 0` instead of `let itemCount = 0`
 - **Multi-word Variables** — Use descriptive names like `the response data` or `the current index`
-- **English Math** — Write `10 plus 5`, `20 divided by 4`, `3 times 4`
-- **Whitespace Independent** — Indentation doesn't matter; structure code however you like
-- **Zero Dependencies** — Pure JavaScript, works in Node.js and browsers
-- **VS Code Extension** — Syntax highlighting, snippets, and code intelligence
-- **Full JS Interop** — Use alongside existing JavaScript code
+- **Full JS Parity** — Classes, async/await, generators, proxies, symbols, and more
+- **Full Node.js Parity** — HTTP servers, file system, crypto, clusters, child processes
+- **Zero Dependencies** — Pure vanilla JavaScript, works in Node.js and browsers
+- **VS Code Extension** — Syntax highlighting and code intelligence
 
 ## Requirements
 
-- **Node.js** — Version 18.0.0 or higher (tested up to v24.x)
-- **No npm packages required** — HyperianLang is written in **vanilla JavaScript** with zero dependencies
-
-### Why Vanilla JS?
-
-HyperianLang is built entirely with pure JavaScript — no frameworks, no build tools, no `npm install`. Just clone and run. This means:
-
-- ✅ No dependency vulnerabilities
-- ✅ No version conflicts
-- ✅ No bloated `node_modules` folder
-- ✅ Works offline after cloning
-- ✅ Easy to understand and modify the source code
-
-### Check Your Version
+- **Node.js 18.0.0+** (tested up to v24.x)
+- **No npm packages required** — zero dependencies
 
 ```bash
 node --version   # Should be v18.0.0 or higher
-```
-
-### Installing Node.js
-
-**macOS/Linux (using nvm):**
-```bash
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-nvm install 20
-nvm use 20
-```
-
-**Windows:**
-Download from [nodejs.org](https://nodejs.org/) (LTS version recommended)
-
-**Ubuntu/Debian:**
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
 ```
 
 ## Installation
@@ -69,557 +37,620 @@ sudo apt-get install -y nodejs
 ```bash
 git clone https://github.com/theKennethy/HyperianLang.git
 cd HyperianLang
+node run.js example.hl
 ```
 
-### Node.js
+---
 
-```javascript
-const { HyperianLang } = require('./core.js');
+# Language Reference
 
-const hl = new HyperianLang();
-hl.load(`
-  let the message be "Hello, World!"
-  print the message
-`);
-await hl.run();
-```
-
-### Browser
-
-```html
-<script src="core.js"></script>
-<script>
-  const hl = new HyperianLang();
-  hl.load(`print "Hello from the browser!"`);
-  hl.run();
-</script>
-```
-
-## VS Code Extension
-
-Install the extension for syntax highlighting:
-
-```bash
-cp -r vscode-hyperianlang ~/.vscode/extensions/hyperianlang
-```
-
-Then reload VS Code.
-
-## Syntax Guide
-
-### Variables
+## Variables
 
 ```hyperianlang
-let x be 10
-let the player name be "Hero"
-let the inventory items be ["sword", "shield", "potion"]
-let the player stats be {"health": 100, "gold": 50}
+// Declaration
+let name be "John"
+let the player score be 100
+let items be ["sword", "shield", "potion"]
+let config be {host: "localhost", port: 3000}
+
+// Assignment
+set name to "Jane"
+set the player score to 200
+
+// Modify
+increase the player score by 50
+decrease the player score by 10
 ```
 
-### Math Operations
+## Math Operations
 
 ```hyperianlang
-let result be 10 plus 5          // 15
-let result be 20 minus 8         // 12
-let result be 4 times 3          // 12
-let result be 20 divided by 4    // 5
-let result be 6 multiplied by 7  // 42
+let result be 10 plus 5           // 15
+let result be 20 minus 8          // 12
+let result be 4 times 3           // 12
+let result be 20 divided by 4     // 5
+let result be 10 mod 3            // 1
+let result be 2 to the power of 8 // 256
 ```
 
-### Control Flow
+### Math Functions
 
 ```hyperianlang
-// If-else
+round 3.7 into rounded            // 4
+floor 3.7 into floored            // 3
+ceil 3.2 into ceiled              // 4
+abs -5 into absolute              // 5
+sqrt 16 into root                 // 4
+random 1 to 100 into num          // random number 1-100
+clamp value between 0 and 100 into clamped
+min a and b into smaller
+max a and b into larger
+```
+
+## Control Flow
+
+### If/Else
+
+```hyperianlang
 if the balance is greater than 0 then
-  print "Account active"
+  say "Account active"
+else if the balance equals 0 then
+  say "Empty account"
 else
-  print "Insufficient funds"
-end
+  say "Overdrawn"
+end if
+```
 
-// Repeat loop
+### Loops
+
+```hyperianlang
+// Repeat N times
 repeat 5 times
-  print "Processing..."
-end
+  say "Hello"
+end repeat
 
 // While loop
-let the counter be 0
 while the counter is less than 10
   increase the counter by 1
-end
+end while
+
+// For each (arrays)
+for each item in items do
+  say item
+end for
+
+// Iterate object keys (for-in)
+iterate keys of config do
+  say key
+end iterate
 ```
 
-### Functions
+### Labeled Break/Continue
 
 ```hyperianlang
-define function "calculate total" with price and quantity
-  return price times quantity
-end
-
-call function "calculate total" with 29.99 and 3 into the result
-print the result  // 89.97
-```
-
-### Classes and OOP
-
-HyperianLang supports object-oriented programming with English-like syntax. **Whitespace and indentation don't matter** — structure your code however you like.
-
-#### Defining a Class
-
-```hyperianlang
-define class "Animal" with name and age
-  define constructor with name and age
-    set this name to name
-    set this age to age
-  end
-  
-  define method "speak" with no arguments
-    print "Some animal sound"
-  end
-  
-  define method "greet" with message
-    print message
-    print this name
-  end
-end
-```
-
-#### Inheritance
-
-```hyperianlang
-define class "Dog" extends "Animal"
-  define method "speak" with no arguments
-    print "Woof! Woof!"
-  end
-  
-  define method "fetch" with item
-    print "Fetching: "
-    print item
-  end
-end
-```
-
-#### Creating Instances
-
-```hyperianlang
-# Create a new Animal
-new "Animal" with "Tiger" and 5 into myPet
-
-# Create a new Dog  
-new "Dog" with "Rex" and 3 into myDog
-```
-
-#### Calling Methods
-
-```hyperianlang
-# Call a method with no arguments
-call method "speak" on myDog
-
-# Call a method with arguments
-call method "greet" on myDog with "Hello, I am"
-```
-
-#### Complete Example
-
-```hyperianlang
-define class "Person" with name and email
-  define constructor with name and email
-    set this name to name
-    set this email to email
-  end
-  
-  define method "introduce" with no arguments
-    print "Hi, I'm "
-    print this name
-  end
-end
-
-define class "Employee" extends "Person" with salary
-  define method "work" with no arguments
-    print this name
-    print " is working..."
-  end
-  
-  define method "getRaise" with amount
-    increase this salary by amount
-  end
-end
-
-new "Person" with "Alice" and "alice@email.com" into alice
-new "Employee" with "Bob" and "bob@work.com" and 50000 into bob
-
-call method "introduce" on alice
-call method "work" on bob
-call method "getRaise" on bob with 5000
-```
-
-#### OOP Syntax Summary
-
-| Concept | Syntax |
-|---------|--------|
-| Define class | `define class "Name" with prop1 and prop2` |
-| Constructor | `define constructor with arguments` |
-| Method | `define method "name" with arguments` |
-| No arguments | `with no arguments` |
-| Inheritance | `define class "Child" extends "Parent"` |
-| Create instance | `new "ClassName" with arguments into variable` |
-| Access this | `this propertyName` or `set this prop to value` |
-| Call method | `call method "name" on object with arguments` |
-
-### Arrays
-
-```hyperianlang
-let the scores be [10, 20, 30, 40, 50]
-
-// Transform (map)
-transform the scores with n into n times 2 into doubled
-// [20, 40, 60, 80, 100]
-
-// Reduce (fold)
-reduce the scores with total and value starting from 0 into the sum
-  let total be total plus value
-end
-// 150
-
-// Every (all match)
-every item in the scores is greater than 0 into all positive
-// true
-
-// Any (some match)
-any item in the scores is greater than 100 into has bonus
-// false
+label outer
+repeat 10 times
+  repeat 10 times
+    if condition then
+      break outer
+    end if
+  end repeat
+end repeat
 ```
 
 ### Match (Switch)
 
 ```hyperianlang
-let the grade be "A"
-
 match the grade
-  on "A" then print "Excellent!"
-  on "B" then print "Good job!"
-  on "C" then print "Keep trying!"
-  else print "Unknown grade"
-end
-```
-
-### Event Handlers
-
-```hyperianlang
-when app starts then
-  set the connection status to "connected"
-  print "Application initialized"
-end
-
-when user clicks on button then
-  increase the click count by 1
-  print "Button clicked!"
-end
-```
-
-### Path Operations
-
-```hyperianlang
-let the folder be "src/utils"
-let the file be "helpers.js"
-join path the folder and the file into the full path
-// "src/utils/helpers.js"
-
-basename of the full path into the name
-// "helpers.js"
+  on "A" then say "Excellent!"
+  on "B" then say "Good job!"
+  on "C" then say "Keep trying!"
+  else say "Unknown grade"
+end match
 ```
 
 ## Comparison Operators
 
-| English | Symbol |
-|---------|--------|
+| English | JS Equivalent |
+|---------|---------------|
+| `is equal to` / `equals` | `===` |
+| `is not equal to` | `!==` |
 | `is greater than` | `>` |
 | `is less than` | `<` |
-| `is equal to` / `equals` | `==` |
-| `is not equal to` | `!=` |
+| `is greater than or equal to` | `>=` |
+| `is less than or equal to` | `<=` |
 | `and` | `&&` |
 | `or` | `\|\|` |
 | `not` | `!` |
 
-## Built-in Actions
+## Functions
 
-### Core
-`let`, `set`, `increase`, `decrease`, `print`, `return`
+```hyperianlang
+// Define function
+define greet with name then
+  say "Hello, " plus name
+end define
 
-### Arrays
-`transform`, `reduce`, `filter`, `sort`, `reverse`, `every`, `any`, `copy`, `assign`
+// Call function
+call greet with "Alice"
 
-### Data
-`append`, `split`, `join`, `trim`, `uppercase`, `lowercase`, `parse`, `stringify`
+// With return value
+define add with a and b then
+  return a plus b
+end define
 
-### Math
-`round`, `floor`, `ceil`, `abs`, `sqrt`, `min`, `max`, `random`, `clamp`
+call add with 5 and 3 into result
 
-### Path
-`join path`, `basename`, `dirname`, `extname`
+// Default parameters
+define greet with name defaults to "World" then
+  say "Hello, " plus name
+end define
 
-## Running Tests
+// Arrow-style (inline)
+define double with n then return n times 2
 
-```bash
-node test_english.js   # English syntax tests
-node test_wave3.js     # Feature tests
+// Rest parameters
+define sum with numbers... then
+  reduce numbers with total and n starting from 0 into result
+    set total to total plus n
+  end reduce
+  return result
+end define
+```
+
+## Arrays
+
+```hyperianlang
+let scores be [10, 20, 30, 40, 50]
+
+// Access
+get index 0 of scores into first
+
+// Modify
+set index 0 of scores to 100
+append 60 to scores
+remove 30 from scores
+
+// Transform (map)
+transform scores with n into n times 2 into doubled
+
+// Filter
+filter scores where n is greater than 25 into high
+
+// Reduce
+reduce scores with total and n starting from 0 into sum
+  set total to total plus n
+end reduce
+
+// Sort
+sort scores into sorted
+sort scores descending into reversed
+
+// Other operations
+reverse scores into reversed
+flatten nested into flat
+copy scores into backup
+length of scores into count
+```
+
+### Array Predicates
+
+```hyperianlang
+every item in scores is greater than 0 into allPositive
+any item in scores is greater than 100 into hasBonus
+find item in scores where item is greater than 30 into found
+```
+
+## Objects
+
+```hyperianlang
+let person be {name: "Alice", age: 30}
+
+// Access
+get name from person into theName
+
+// Modify
+set key "email" in person to "alice@example.com"
+
+// Shorthand properties
+let name be "Bob"
+let age be 25
+let user be {name, age}  // {name: "Bob", age: 25}
+
+// Computed property names
+let key be "dynamicKey"
+let obj be {[key]: "value"}
+
+// Get keys/values
+keys of person into keyList
+values of person into valueList
+entries of person into entryList
+
+// Merge objects
+merge defaults and overrides into config
+assign source to target
+copy person into clone
+```
+
+### Destructuring
+
+```hyperianlang
+// Object destructuring
+destruct name and age from person
+
+// Array destructuring
+destruct first and second from items
+```
+
+## Strings
+
+```hyperianlang
+let text be "Hello World"
+
+// Operations
+uppercase text into upper
+lowercase text into lower
+trim text into trimmed
+length of text into len
+
+// Split/Join
+split text by " " into words
+join words with ", " into sentence
+
+// Search
+index of "World" in text into pos
+includes "Hello" in text into found
+
+// Slice
+slice text from 0 to 5 into sub
+
+// Replace
+replace "World" with "Universe" in text into newText
+
+// Pad
+pad text to 20 with " " into padded
+
+// Character access
+char at 0 of text into firstChar
+```
+
+## Classes and OOP
+
+```hyperianlang
+define class Animal with name and age
+  define constructor with name and age
+    set this name to name
+    set this age to age
+  end constructor
+  
+  define method speak with no arguments
+    say "Some sound"
+  end method
+  
+  define method greet with message
+    say message plus this name
+  end method
+end class
+
+// Inheritance
+define class Dog extends Animal
+  define method speak with no arguments
+    say "Woof!"
+  end method
+  
+  define method fetch with item
+    say "Fetching " plus item
+  end method
+end class
+
+// Instantiation
+new Animal with "Tiger" and 5 into myPet
+new Dog with "Rex" and 3 into myDog
+
+// Method calls
+call method speak on myDog
+call method greet on myDog with "Hello, I am "
+```
+
+## Error Handling
+
+```hyperianlang
+try
+  // risky code
+  call dangerousFunction
+catch error
+  say "Error: " plus error
+finally
+  say "Cleanup"
+end try
+
+// Throw errors
+throw "Something went wrong"
+throw new Error with "Custom error"
+```
+
+## Async/Await
+
+```hyperianlang
+// Await a promise
+await fetch url into response
+
+// Promise creation
+promise resolve with data into p
+promise reject with error into p
+
+// Promise combinators
+promise all promises into results
+promise race promises into first
+promise any promises into winner
+```
+
+## Generators
+
+```hyperianlang
+generator range with start and end
+  let i be start
+  while i is less than end
+    yield i
+    increase i by 1
+  end while
+end generator
+
+// Use generator
+call range with 1 and 5 into gen
+```
+
+## Advanced JavaScript Features
+
+### Proxy
+
+```hyperianlang
+proxy target with handler into proxied
+```
+
+### Symbol
+
+```hyperianlang
+symbol "description" into sym
+symbol for "key" into globalSym
+```
+
+### BigInt
+
+```hyperianlang
+bigint "9007199254740993" into big
+```
+
+### WeakMap/WeakSet
+
+```hyperianlang
+weakmap into cache
+weakset into visited
+```
+
+### Reflect
+
+```hyperianlang
+reflect get target property into value
+reflect set target property to value
+reflect has target property into exists
+```
+
+### SharedArrayBuffer & Atomics
+
+```hyperianlang
+shared buffer size 1024 into sharedArr
+
+atomic store 42 to sharedArr at 0
+atomic load sharedArr at 0 into value
+atomic add 10 to sharedArr at 0 into oldValue
+atomic sub 5 from sharedArr at 0 into oldValue
 ```
 
 ---
 
-## HTTP Server Support
+# Node.js APIs
 
-HyperianLang includes built-in HTTP server capabilities with English-like syntax.
+## File System
 
-### Starting a Server
+```hyperianlang
+// Read file
+read file "data.txt" into content
+
+// Write file
+write "Hello" to file "output.txt"
+
+// Check existence
+file exists "data.txt" into exists
+
+// List directory
+list files in "src" into files
+
+// Delete file
+delete file "temp.txt"
+```
+
+## Path Operations
+
+```hyperianlang
+join path "src" and "utils" and "helper.js" into fullPath
+basename of fullPath into name
+dirname of fullPath into dir
+extname of fullPath into ext
+```
+
+## HTTP Client
+
+```hyperianlang
+// GET request
+fetch "https://api.example.com/data" into response
+
+// POST request
+post data to "https://api.example.com/users" into response
+
+// With headers
+fetch url with headers into response
+```
+
+## HTTP Server
 
 ```hyperianlang
 start the server on port 3000
-```
 
-### Defining Routes
-
-Use the `when the server receives` syntax to define route handlers:
-
-```hyperianlang
-# GET request
 when the server receives a "GET" request to "/" then
-  respond with { message: "Hello World" }
-end
+  respond with {message: "Hello World"}
+end when
 
-# POST request
 when the server receives a "POST" request to "/users" then
-  set userData to get the body from request
-  respond with { success: true, data: userData }
-end
+  set body to get the body from request
+  respond with {success: true, data: body}
+end when
 
-# Route parameters
 when the server receives a "GET" request to "/users/:id" then
-  set parameters to get the parameters from request
-  set userId to get id from parameters
-  respond with { userId: userId }
-end
-```
+  set params to get the parameters from request
+  respond with {userId: params id}
+end when
 
-### Responses
-
-```hyperianlang
-# JSON response (default)
-respond with { status: "ok", data: users }
-
-# With explicit status code
-respond with 201 and { created: true }
-
-# HTML response
-send html "<html><body><h1>Hello</h1></body></html>"
-
-# CSS response
-send css "body { background: blue; }"
-```
-
-### Content-Type Auto-Detection
-
-HyperianLang automatically detects content types:
-
-| Content Starts With | Detected As |
-|---------------------|-------------|
-| `<!DOCTYPE` or `<html` | text/html |
-| `<` with closing tags | text/html |
-| `{` or `[` | application/json |
-| CSS patterns (`.class {`, `body {`) | text/css |
-| Other strings | text/plain |
-| Objects/Arrays | application/json |
-
-You can also force a content type:
-
-```hyperianlang
-send html "<h1>Hello</h1>"        # Forces text/html
-send css "body { color: red; }"   # Forces text/css
-respond with "data" as json       # Forces application/json
-```
-
-### Serving Static Files
-
-```hyperianlang
-# Serve an HTML file
+// Serve static files
 serve file "public/index.html"
 
-# Serve any static file (auto-detects MIME type)
-serve file "public/styles.css"
-serve file "public/script.js"
-serve file "public/image.png"
+// Response types
+respond with 201 and {created: true}
+send html "<h1>Hello</h1>"
+send css "body { color: red; }"
 ```
 
-### Request Data
-
-Access request data using `get X from request`:
+## HTTPS Server
 
 ```hyperianlang
-# Get request body (for POST/PUT)
-set body to get the body from request
-
-# Get URL parameters (for routes like /users/:id)
-set parameters to get the parameters from request
-set id to get id from parameters
-
-# Get query parameters
-set query to get the query from request
+secure server on port 443 with key "server.key" and cert "server.crt"
 ```
 
-### Supported MIME Types
+## Crypto
 
-When serving files, the following MIME types are auto-detected:
+```hyperianlang
+// Hashing
+hash "password" with "sha256" into hashed
 
-| Extension | MIME Type |
-|-----------|-----------|
-| .html | text/html |
-| .css | text/css |
-| .js | application/javascript |
-| .json | application/json |
-| .png | image/png |
-| .jpg, .jpeg | image/jpeg |
-| .gif | image/gif |
-| .svg | image/svg+xml |
-| .ico | image/x-icon |
-| .txt | text/plain |
+// Encryption
+encrypt "secret" with "aes-256-cbc" and key into encrypted
+decrypt encrypted with "aes-256-cbc" and key into decrypted
+
+// Random bytes
+random bytes 32 into buffer
+```
+
+## Child Process
+
+```hyperianlang
+run command "ls -la" into output
+run command "npm install" async into process
+```
+
+## OS Module
+
+```hyperianlang
+os platform into platform
+os hostname into host
+os cpus into cpuList
+os memory into mem
+os uptime into uptime
+os homedir into home
+os tmpdir into temp
+```
+
+## Cluster
+
+```hyperianlang
+cluster is primary into isPrimary
+cluster workers into workerCount
+cluster fork into worker
+cluster on "exit" do
+  say "Worker exited"
+end cluster
+```
+
+## Worker Threads
+
+```hyperianlang
+worker "worker.js" into w
+worker send message to w
+worker on message from w do
+  say "Received: " plus message
+end worker
+```
+
+## Compression
+
+```hyperianlang
+compress data into compressed
+decompress compressed into original
+```
+
+## Database (SQLite)
+
+```hyperianlang
+connect to database "app.db"
+
+query "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)"
+
+insert into "users" values {name: "Alice"}
+
+select from "users" where "name = 'Alice'" into results
+
+update "users" set {name: "Bob"} where "id = 1"
+```
+
+## JSON
+
+```hyperianlang
+parse jsonString into data
+stringify data into jsonString
+```
+
+## Environment
+
+```hyperianlang
+get env "NODE_ENV" into environment
+set env "DEBUG" to "true"
+```
+
+## Assertions
+
+```hyperianlang
+assert value equals expected
+assert value is greater than 0
+assert condition with message "Must be true"
+```
 
 ---
 
-## Using with Electron
+# Electron Desktop Apps
 
-HyperianLang works seamlessly with Electron for building desktop applications — **no JavaScript files required**.
-
-### Quick Setup
+Run any HyperianLang file as a desktop app:
 
 ```bash
-# Install Electron in your project or globally
 npm install electron --save-dev
-```
-
-### Run Your App
-
-Use the `--electron` flag to run any HyperianLang file as a desktop app:
-
-```bash
-node run.js --electron myapp.hl
-```
-
-That's it! No `main.js`, no boilerplate — just your HyperianLang code.
-
-### Example: Desktop Todo App (app.hl)
-
-```hyperianlang
-# HyperianLang Desktop App - Todo List
-
-create a list called todos
-
-define function "renderPage" with no arguments
-  set html to "<!DOCTYPE html><html><head>"
-  set html to html plus "<title>HyperianLang Todo App</title>"
-  set html to html plus "<style>body{font-family:sans-serif;max-width:600px;margin:50px auto;}</style>"
-  set html to html plus "</head><body>"
-  set html to html plus "<h1>Todo List</h1>"
-  set html to html plus "<form method='POST' action='/add'>"
-  set html to html plus "<input name='task' placeholder='New task...'>"
-  set html to html plus "<button>Add</button>"
-  set html to html plus "</form><ul>"
-  
-  for each todo in todos
-    set html to html plus "<li>" plus todo plus "</li>"
-  end
-  
-  set html to html plus "</ul></body></html>"
-  return html
-end
-
-when the server receives a "GET" request to "/" then
-  call function "renderPage" into page
-  send html page
-end
-
-when the server receives a "POST" request to "/add" then
-  set body to get the body from request
-  set task to get task from body
-  append task to todos
-  send html "<meta http-equiv='refresh' content='0;url=/'>"
-end
-
-start the server on port 3000
-```
-
-### Running the Desktop App
-
-```bash
 node run.js --electron app.hl
 ```
 
-An Electron window opens and loads your HyperianLang server at `http://localhost:3000`.
-
-### How It Works
-
-The `--electron` flag:
-1. Loads your `.hl` file and starts any HTTP servers
-2. Launches Electron with a window pointing to `localhost:3000`
-3. No JavaScript boilerplate needed — 100% HyperianLang
-
 ---
 
-## Example: Complete Web Application
-
-### webapp.hl
-
-```hyperianlang
-# HyperianLang Web Application
-
-# Database for users
-create a list called users
-append { id: 1, name: "Alice", email: "alice@example.com" } to users
-append { id: 2, name: "Bob", email: "bob@example.com" } to users
-
-set nextId to 3
-
-log "Starting web application..."
-
-# Serve the main HTML page
-when the server receives a "GET" request to "/" then
-  serve file "public/index.html"
-end
-
-# API: Get all users
-when the server receives a "GET" request to "/api/users" then
-  respond with { success: true, data: users }
-end
-
-# API: Create a new user
-when the server receives a "POST" request to "/api/users" then
-  set userData to get the body from request
-  set userName to get name from userData
-  set userEmail to get email from userData
-  set newUser to { id: nextId, name: userName, email: userEmail }
-  append newUser to users
-  increase nextId by 1
-  respond with { success: true, user: newUser }
-end
-
-# API: Health check
-when the server receives a "GET" request to "/api/health" then
-  respond with { status: "ok", message: "Server is running" }
-end
-
-# Start the server
-start the server on port 3000
-```
-
-### Running the Web App
+# VS Code Extension
 
 ```bash
-node run.js webapp.hl
+cp -r vscode-hyperianlang ~/.vscode/extensions/hyperianlang
 ```
-
-Then open http://localhost:3000 in your browser.
 
 ---
 
-## License
+# Examples
+
+See `example.hl`, `webapp.hl`, and `server.hl` for complete examples.
+
+---
+
+# License
 
 MIT
 
