@@ -58,6 +58,8 @@ const _ES_ACTIONS = new Set([
   'query', 'insert', 'update', 'select', 'where',
   // async
   'await', 'async', 'promise', 'resolve', 'reject',
+  // check
+  'check',
 ]);
 
 const _ES_PREPS = new Set([
@@ -340,7 +342,7 @@ class HLParser {
       'restore', 'drain', 'append', 'fetch', 'post', 'parse', 'stringify',
       'read', 'write', 'split', 'replace', 'convert', 'sort', 'reverse', 'filter',
       'merge', 'flatten', 'get', 'find', 'clamp', 'log', 'exit', 'run', 'create',
-      'transform', 'reduce', 'copy', 'assign', 'match', 'return',
+      'transform', 'reduce', 'copy', 'assign', 'match', 'return', 'check',
     ]);
     // Statement-starting keywords that should not be consumed as part of variable names
     const STMT_KEYWORDS = new Set([
@@ -614,7 +616,7 @@ class HLParser {
         'restore', 'drain', 'append', 'fetch', 'post', 'parse', 'stringify',
         'read', 'write', 'split', 'replace', 'convert', 'sort', 'reverse', 'filter',
         'merge', 'flatten', 'get', 'find', 'clamp', 'log', 'exit', 'run', 'create',
-        'transform', 'reduce', 'copy', 'assign', 'match', 'return',
+        'transform', 'reduce', 'copy', 'assign', 'match', 'return', 'check',
       ]);
       const SKIP_ARTICLES = new Set(['the', 'a', 'an', 'this', 'that']);
       const words = [];
@@ -992,6 +994,8 @@ class HLParser {
       // Timers (setTimeout/setInterval)
       case 'after':     return this._parseAfter();
       case 'interval':  return this._parseInterval();
+      // Check contains
+      case 'check':     return this._parseCheck();
       default: this._next(); return null;
     }
   }
@@ -3056,6 +3060,31 @@ class HLParser {
     if (this._is('end')) this._next();
     return { type: 'setInterval', delay, body, id };
   }
+
+  // ── check if X contains Y into result ─────────────────────────────────────
+  // Grammatically correct contains check
+  _parseCheck() {
+    this._consume('check');
+    if (this._is('if')) this._next();
+    const haystack = this._consumeIdent();
+    let checkType = 'contains';
+    if (this._is('contains') || this._is('has') || this._is('includes')) {
+      checkType = 'contains';
+      this._next();
+    } else if (this._is('starts')) {
+      this._next();
+      if (this._is('with')) this._next();
+      checkType = 'startsWith';
+    } else if (this._is('ends')) {
+      this._next();
+      if (this._is('with')) this._next();
+      checkType = 'endsWith';
+    }
+    const needle = this._parsePrimary();
+    if (this._is('into')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'checkContains', haystack, needle, checkType, out };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4784,6 +4813,29 @@ class HLInterpreter {
         }, delay);
         // Store interval ID in vars if specified
         if (stmt.id && w) w._vars[stmt.id] = intervalId;
+        break;
+      }
+
+      // ── check if X contains Y into result ─────────────────────────────────
+      case 'checkContains': {
+        if (!w) break;
+        const haystack = w._vars[stmt.haystack] ?? stmt.haystack;
+        const needle = this._resolveValue(stmt.needle);
+        let result = false;
+        
+        if (stmt.checkType === 'contains') {
+          if (Array.isArray(haystack)) {
+            result = haystack.includes(needle);
+          } else {
+            result = String(haystack).includes(String(needle));
+          }
+        } else if (stmt.checkType === 'startsWith') {
+          result = String(haystack).startsWith(String(needle));
+        } else if (stmt.checkType === 'endsWith') {
+          result = String(haystack).endsWith(String(needle));
+        }
+        
+        w._vars[stmt.out] = result;
         break;
       }
     }
