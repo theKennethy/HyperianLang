@@ -27,7 +27,17 @@ end
 ## Requirements
 
 - **Node.js** — Version 18.0.0 or higher (tested up to v24.x)
-- **npm** — Comes with Node.js (no packages to install)
+- **No npm packages required** — HyperianLang is written in **vanilla JavaScript** with zero dependencies
+
+### Why Vanilla JS?
+
+HyperianLang is built entirely with pure JavaScript — no frameworks, no build tools, no `npm install`. Just clone and run. This means:
+
+- ✅ No dependency vulnerabilities
+- ✅ No version conflicts
+- ✅ No bloated `node_modules` folder
+- ✅ Works offline after cloning
+- ✅ Easy to understand and modify the source code
 
 ### Check Your Version
 
