@@ -17,6 +17,47 @@ when the server receives a "GET" request to "/" then
   html page
     html head
       html title "My Website"
+      
+      # CSS with English sentence syntax
+      css rule "body"
+        use background to "#f5f5f5"
+        use fontfamily to "Arial, sans-serif"
+        use margin to "0"
+        use padding to "20px"
+      end rule
+      
+      css class "button"
+        use background to "#007bff"
+        use color to "white"
+        use padding to "10px 20px"
+        use borderradius to "5px"
+        use cursor to "pointer"
+      end class
+      
+      css class "button:hover"
+        use background to "#0056b3"
+      end class
+      
+      css id "header"
+        use fontsize to "24px"
+        use fontweight to "bold"
+        use marginbottom to "20px"
+      end id
+      
+      css media "screen and (max-width: 768px)"
+        rule ".container"
+          use width to "100%"
+          use padding to "10px"
+        end rule
+      end media
+      
+      css keyframes "fadeIn"
+        at "0%"
+          use opacity to "0"
+        at "100%"
+          use opacity to "1"
+      end keyframes
+      
     end head
     html body
       html heading "Welcome"

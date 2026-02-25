@@ -11,6 +11,7 @@
     { "include": "#control-flow" },
     { "include": "#declarations" },
     { "include": "#html-keywords" },
+    { "include": "#css-keywords" },
     { "include": "#actions" },
     { "include": "#operators" },
     { "include": "#numbers" },
@@ -324,6 +325,62 @@
         {
           "name": "support.constant.attribute.hyperianlang",
           "match": "\\b(controls|autoplay|loop|muted|poster|width|height|open)\\b"
+        }
+      ]
+    },
+    "css-keywords": {
+      "patterns": [
+        {
+          "name": "entity.name.tag.css.hyperianlang",
+          "match": "\\b(css|stylesheet|styling)\\b"
+        },
+        {
+          "name": "entity.name.tag.css.rule.hyperianlang",
+          "match": "\\b(rule|selector|select|class|identifier)\\b"
+        },
+        {
+          "name": "entity.name.tag.css.media.hyperianlang",
+          "match": "\\b(media|responsive|breakpoint|keyframes|animation|animate|fontface|font)\\b"
+        },
+        {
+          "name": "support.type.property-name.css.hyperianlang",
+          "match": "\\b(background|bgcolor|backgroundcolor|color|textcolor|fontsize|fontweight|fontstyle|fontfamily)\\b"
+        },
+        {
+          "name": "support.type.property-name.css.hyperianlang",
+          "match": "\\b(textdecoration|textalign|lineheight|letterspacing|wordspacing|textoverflow|texttransform)\\b"
+        },
+        {
+          "name": "support.type.property-name.css.hyperianlang",
+          "match": "\\b(margin|margintop|marginbottom|marginleft|marginright|padding|paddingtop|paddingbottom|paddingleft|paddingright)\\b"
+        },
+        {
+          "name": "support.type.property-name.css.hyperianlang",
+          "match": "\\b(border|bordertop|borderbottom|borderleft|borderright|borderwidth|bordercolor|borderstyle|borderradius)\\b"
+        },
+        {
+          "name": "support.type.property-name.css.hyperianlang",
+          "match": "\\b(display|position|top|bottom|left|right|zindex|overflow|overflowx|overflowy|visibility|opacity)\\b"
+        },
+        {
+          "name": "support.type.property-name.css.hyperianlang",
+          "match": "\\b(flex|flexdirection|flexwrap|justifycontent|alignitems|alignself|aligncontent|flexgrow|flexshrink|flexbasis)\\b"
+        },
+        {
+          "name": "support.type.property-name.css.hyperianlang",
+          "match": "\\b(grid|gridtemplate|gridtemplatecolumns|gridtemplaterows|gridcolumn|gridrow|gap|rowgap|columngap)\\b"
+        },
+        {
+          "name": "support.type.property-name.css.hyperianlang",
+          "match": "\\b(transform|transition|boxshadow|textshadow|filter|backdropfilter)\\b"
+        },
+        {
+          "name": "support.type.property-name.css.hyperianlang",
+          "match": "\\b(cursor|float|clear|minwidth|maxwidth|minheight|maxheight|objectfit|objectposition|whitespace)\\b"
+        },
+        {
+          "name": "keyword.other.css.hyperianlang",
+          "match": "\\b(use|property|prop|variable|var|inline|frame|step|source|src|weight)\\b"
         }
       ]
     }

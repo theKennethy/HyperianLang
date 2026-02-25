@@ -67,6 +67,31 @@ const _ES_KEYWORDS = new Set([
   'columns', 'column', 'headerrows', 'bodyrows', 'footerrows',
   'formgroup', 'grouptitle', 'result', 'optiongroup',
   'nojs', 'baseurl', 'machinevalue', 'contact',
+  // CSS styling keywords  
+  'css', 'styling', 'rule', 'selector', 'select',
+  'media', 'breakpoint', 'keyframes', 'animate', 'fontface',
+  'property', 'prop', 'equals', 'use',
+  'identifier', 'inline', 'frame', 'step', 'source', 'weight',
+  // CSS property names (English aliases)
+  'background', 'bgcolor', 'backgroundcolor', 'textcolor', 'fontsize', 'fontweight',
+  'fontstyle', 'fontfamily', 'textdecoration', 'textalign', 'lineheight',
+  'letterspacing', 'wordspacing', 'minwidth', 'maxwidth', 'minheight', 'maxheight',
+  'margintop', 'marginbottom', 'marginleft', 'marginright',
+  'paddingtop', 'paddingbottom', 'paddingleft', 'paddingright',
+  'bordertop', 'borderbottom', 'borderleft', 'borderright',
+  'borderwidth', 'bordercolor', 'borderstyle', 'borderradius', 'boxshadow', 'textshadow',
+  'display', 'position', 'zindex', 'overflow', 'overflowx', 'overflowy',
+  'visibility', 'opacity', 'cursor', 'float', 'clear',
+  'flexdirection', 'flexwrap', 'justifycontent', 'alignitems', 'alignself',
+  'aligncontent', 'flexgrow', 'flexshrink', 'flexbasis',
+  'gridtemplate', 'gridtemplatecolumns', 'gridtemplaterows', 'gridcolumn', 'gridrow',
+  'rowgap', 'columngap', 'transition', 'animationname', 'animationduration', 'animationdelay',
+  'backgroundimage', 'backgroundsize', 'backgroundposition', 'backgroundrepeat',
+  'liststyle', 'liststyletype', 'outline', 'objectfit', 'objectposition',
+  'whitespace', 'textoverflow', 'texttransform', 'verticalign', 'pointerevents',
+  'userselect', 'content', 'backdropfilter', 'aspectratio', 'scrollbehavior',
+  'caretcolor', 'accentcolor', 'appearance', 'clippath', 'maskimage',
+  'mixblendmode', 'isolation', 'perspective', 'transformstyle', 'backfacevisibility', 'willchange',
 ]);
 
 const _ES_ACTIONS = new Set([
@@ -422,6 +447,7 @@ class HLParser {
   _next() { return this.tokens[this.pos++] || null; }
   _is(val) { return this._peek()?.value === val; }
   _isType(t) { return this._peek()?.type === t; }
+  _isEndTag(tag) { return this._peek()?.value === 'end' && this._peek(1)?.value === tag; }
 
   _consume(expectedValue) {
     const tok = this._next();
@@ -1440,6 +1466,10 @@ class HLParser {
       // HTML generation
       case 'html':      return this._parseHtml();
       case 'render':    return this._parseRender();
+      // CSS styling
+      case 'css':       return this._parseCss();
+      case 'stylesheet': return this._parseStylesheet();
+      case 'styling':   return this._parseStyling();
       default: this._next(); return null;
     }
   }
@@ -6475,6 +6505,391 @@ class HLParser {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // CSS STYLING PARSERS (English Sentence Syntax)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // css rule ".button" ... end rule
+  // css rule for "selector" ... end rule
+  // css set background to "blue"
+  // css property fontsize "24px"
+  _parseCss() {
+    this._consume('css');
+    const tok = this._peek();
+    
+    // css rule ".button" ... end rule
+    if (this._is('rule') || this._is('selector') || this._is('select')) {
+      this._next();
+      if (this._is('for')) this._next();
+      const selector = this._parseValue();
+      const properties = [];
+      
+      // Parse properties until "end rule" or "end css"
+      while (!this._isEndTag('rule') && !this._isEndTag('css') && !this._isEndTag('selector') && this._peek()) {
+        if (this._is('use') || this._is('property') || this._is('prop')) {
+          this._next();
+          const prop = this._consumeIdent();
+          if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+          const value = this._parseValue();
+          properties.push({ prop, value });
+        } else if (this._is('and')) {
+          this._next();
+        } else if (this._peek()?.type === 'IDENT' && !this._is('end')) {
+          // Direct property: "background blue"
+          const prop = this._consumeIdent();
+          if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+          const value = this._parseValue();
+          properties.push({ prop, value });
+        } else {
+          break;
+        }
+      }
+      if (this._isEndTag('rule') || this._isEndTag('css') || this._isEndTag('selector')) {
+        this._next(); this._next();
+      }
+      return { type: 'cssRule', selector, properties };
+    }
+    
+    // css inline "selector" with background "blue" color "white" into varName
+    if (this._is('inline')) {
+      this._next();
+      const selector = this._parseValue();
+      const properties = [];
+      if (this._is('with') || this._is('using')) this._next();
+      
+      while (!this._is('into') && !this._is('called') && this._peek()) {
+        if (this._peek()?.type === 'IDENT') {
+          const prop = this._consumeIdent();
+          const value = this._parseValue();
+          properties.push({ prop, value });
+          if (this._is('and')) this._next();
+        } else {
+          break;
+        }
+      }
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'cssInline', selector, properties, out };
+    }
+    
+    // css class "className" ... end class
+    if (this._is('class')) {
+      this._next();
+      const className = this._parseValue();
+      const properties = [];
+      
+      while (!this._isEndTag('class') && this._peek()) {
+        if (this._is('use') || this._is('property') || this._is('prop')) {
+          this._next();
+          const prop = this._consumeIdent();
+          if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+          const value = this._parseValue();
+          properties.push({ prop, value });
+        } else if (this._is('and')) {
+          this._next();
+        } else if (this._peek()?.type === 'IDENT' && !this._is('end')) {
+          const prop = this._consumeIdent();
+          if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+          const value = this._parseValue();
+          properties.push({ prop, value });
+        } else {
+          break;
+        }
+      }
+      if (this._isEndTag('class')) { this._next(); this._next(); }
+      return { type: 'cssClass', className, properties };
+    }
+    
+    // css id "idName" ... end id
+    if (this._is('id') || this._is('identifier')) {
+      this._next();
+      const idName = this._parseValue();
+      const properties = [];
+      
+      while (!this._isEndTag('id') && !this._isEndTag('identifier') && this._peek()) {
+        if (this._is('use') || this._is('property') || this._is('prop')) {
+          this._next();
+          const prop = this._consumeIdent();
+          if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+          const value = this._parseValue();
+          properties.push({ prop, value });
+        } else if (this._is('and')) {
+          this._next();
+        } else if (this._peek()?.type === 'IDENT' && !this._is('end')) {
+          const prop = this._consumeIdent();
+          if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+          const value = this._parseValue();
+          properties.push({ prop, value });
+        } else {
+          break;
+        }
+      }
+      if (this._isEndTag('id') || this._isEndTag('identifier')) { this._next(); this._next(); }
+      return { type: 'cssId', idName, properties };
+    }
+    
+    // css media "screen and (max-width: 768px)" ... end media
+    if (this._is('media') || this._is('responsive') || this._is('breakpoint')) {
+      this._next();
+      if (this._is('query') || this._is('for')) this._next();
+      const query = this._parseValue();
+      const rules = [];
+      
+      while (!this._isEndTag('media') && !this._isEndTag('responsive') && !this._isEndTag('breakpoint') && this._peek()) {
+        if (this._is('rule') || this._is('selector') || this._is('select')) {
+          this._next();
+          if (this._is('for')) this._next();
+          const selector = this._parseValue();
+          const properties = [];
+          
+          while (!this._isEndTag('rule') && !this._isEndTag('selector') && !this._is('rule') && !this._is('selector') && this._peek()) {
+            if (this._is('use') || this._is('property') || this._is('prop')) {
+              this._next();
+              const prop = this._consumeIdent();
+              if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+              const value = this._parseValue();
+              properties.push({ prop, value });
+            } else if (this._is('and')) {
+              this._next();
+            } else if (this._peek()?.type === 'IDENT' && !this._is('end') && !this._is('rule') && !this._is('selector')) {
+              const prop = this._consumeIdent();
+              if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+              const value = this._parseValue();
+              properties.push({ prop, value });
+            } else {
+              break;
+            }
+          }
+          if (this._isEndTag('rule') || this._isEndTag('selector')) { this._next(); this._next(); }
+          rules.push({ selector, properties });
+        } else {
+          break;
+        }
+      }
+      if (this._isEndTag('media') || this._isEndTag('responsive') || this._isEndTag('breakpoint')) { this._next(); this._next(); }
+      return { type: 'cssMedia', query, rules };
+    }
+    
+    // css keyframes "animation-name" ... end keyframes
+    if (this._is('keyframes') || this._is('animation') || this._is('animate')) {
+      this._next();
+      if (this._is('named') || this._is('called')) this._next();
+      const name = this._parseValue();
+      const frames = [];
+      
+      while (!this._isEndTag('keyframes') && !this._isEndTag('animation') && !this._isEndTag('animate') && this._peek()) {
+        if (this._is('at') || this._is('frame') || this._is('step')) {
+          this._next();
+          const position = this._parseValue(); // "0%", "50%", "from", "to"
+          const properties = [];
+          
+          while (!this._is('at') && !this._is('frame') && !this._is('step') && !this._isEndTag('keyframes') && !this._isEndTag('animation') && !this._isEndTag('animate') && this._peek()) {
+            if (this._is('use') || this._is('property') || this._is('prop')) {
+              this._next();
+              const prop = this._consumeIdent();
+              if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+              const value = this._parseValue();
+              properties.push({ prop, value });
+            } else if (this._is('and')) {
+              this._next();
+            } else if (this._peek()?.type === 'IDENT' && !this._is('end') && !this._is('at') && !this._is('frame') && !this._is('step')) {
+              const prop = this._consumeIdent();
+              if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+              const value = this._parseValue();
+              properties.push({ prop, value });
+            } else {
+              break;
+            }
+          }
+          frames.push({ position, properties });
+        } else {
+          break;
+        }
+      }
+      if (this._isEndTag('keyframes') || this._isEndTag('animation') || this._isEndTag('animate')) { this._next(); this._next(); }
+      return { type: 'cssKeyframes', name, frames };
+    }
+    
+    // css variable "name" value "blue"
+    if (this._is('variable') || this._is('var')) {
+      this._next();
+      const name = this._parseValue();
+      if (this._is('value') || this._is('equals') || this._is('as') || this._is('to')) this._next();
+      const value = this._parseValue();
+      return { type: 'cssVariable', name, value };
+    }
+    
+    // css import "url" or css include "url"
+    if (this._is('import') || this._is('include')) {
+      this._next();
+      const url = this._parseValue();
+      return { type: 'cssImport', url };
+    }
+    
+    // css fontface "FontName" ... end fontface
+    if (this._is('fontface') || this._is('font')) {
+      this._next();
+      if (this._is('face')) this._next();
+      const family = this._parseValue();
+      const properties = [];
+      
+      while (!this._isEndTag('fontface') && !this._isEndTag('font') && this._peek()) {
+        if (this._is('source') || this._is('src') || this._is('from')) {
+          this._next();
+          const value = this._parseValue();
+          properties.push({ prop: 'src', value });
+        } else if (this._is('weight')) {
+          this._next();
+          const value = this._parseValue();
+          properties.push({ prop: 'fontWeight', value });
+        } else if (this._is('style')) {
+          this._next();
+          const value = this._parseValue();
+          properties.push({ prop: 'fontStyle', value });
+        } else if (this._is('and')) {
+          this._next();
+        } else if (this._peek()?.type === 'IDENT' && !this._is('end')) {
+          const prop = this._consumeIdent();
+          if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+          const value = this._parseValue();
+          properties.push({ prop, value });
+        } else {
+          break;
+        }
+      }
+      if (this._isEndTag('fontface') || this._isEndTag('font')) { this._next(); this._next(); }
+      return { type: 'cssFontFace', family, properties };
+    }
+    
+    return { type: 'noop' };
+  }
+  
+  // stylesheet ... end stylesheet
+  // Creates a complete stylesheet block
+  _parseStylesheet() {
+    this._consume('stylesheet');
+    let name = null;
+    if (this._is('named') || this._is('called')) { this._next(); name = this._consumeIdent(); }
+    
+    const rules = [];
+    
+    while (!this._isEndTag('stylesheet') && this._peek()) {
+      if (this._is('rule') || this._is('selector') || this._is('select')) {
+        this._next();
+        if (this._is('for')) this._next();
+        const selector = this._parseValue();
+        const properties = [];
+        
+        while (!this._isEndTag('rule') && !this._isEndTag('selector') && !this._is('rule') && !this._is('selector') && !this._isEndTag('stylesheet') && this._peek()) {
+          if (this._is('use') || this._is('property') || this._is('prop')) {
+            this._next();
+            const prop = this._consumeIdent();
+            if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+            const value = this._parseValue();
+            properties.push({ prop, value });
+          } else if (this._is('and')) {
+            this._next();
+          } else if (this._peek()?.type === 'IDENT' && !this._is('end') && !this._is('rule') && !this._is('selector')) {
+            const prop = this._consumeIdent();
+            if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+            const value = this._parseValue();
+            properties.push({ prop, value });
+          } else {
+            break;
+          }
+        }
+        if (this._isEndTag('rule') || this._isEndTag('selector')) { this._next(); this._next(); }
+        rules.push({ type: 'rule', selector, properties });
+      } else if (this._is('class')) {
+        this._next();
+        const className = this._parseValue();
+        const properties = [];
+        
+        while (!this._isEndTag('class') && !this._is('class') && !this._is('rule') && !this._isEndTag('stylesheet') && this._peek()) {
+          if (this._is('use') || this._is('property') || this._is('prop')) {
+            this._next();
+            const prop = this._consumeIdent();
+            if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+            const value = this._parseValue();
+            properties.push({ prop, value });
+          } else if (this._is('and')) {
+            this._next();
+          } else if (this._peek()?.type === 'IDENT' && !this._is('end') && !this._is('class') && !this._is('rule')) {
+            const prop = this._consumeIdent();
+            if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+            const value = this._parseValue();
+            properties.push({ prop, value });
+          } else {
+            break;
+          }
+        }
+        if (this._isEndTag('class')) { this._next(); this._next(); }
+        rules.push({ type: 'class', className, properties });
+      } else if (this._is('id') || this._is('identifier')) {
+        this._next();
+        const idName = this._parseValue();
+        const properties = [];
+        
+        while (!this._isEndTag('id') && !this._isEndTag('identifier') && !this._is('id') && !this._is('rule') && !this._isEndTag('stylesheet') && this._peek()) {
+          if (this._is('use') || this._is('property') || this._is('prop')) {
+            this._next();
+            const prop = this._consumeIdent();
+            if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+            const value = this._parseValue();
+            properties.push({ prop, value });
+          } else if (this._is('and')) {
+            this._next();
+          } else if (this._peek()?.type === 'IDENT' && !this._is('end') && !this._is('id') && !this._is('identifier') && !this._is('rule')) {
+            const prop = this._consumeIdent();
+            if (this._is('to') || this._is('as') || this._is('equals')) this._next();
+            const value = this._parseValue();
+            properties.push({ prop, value });
+          } else {
+            break;
+          }
+        }
+        if (this._isEndTag('id') || this._isEndTag('identifier')) { this._next(); this._next(); }
+        rules.push({ type: 'id', idName, properties });
+      } else if (this._is('media') || this._is('responsive') || this._is('breakpoint')) {
+        // Delegate to _parseCss for media query handling
+        const mediaRule = this._parseCss();
+        if (mediaRule.type !== 'noop') rules.push(mediaRule);
+      } else {
+        break;
+      }
+    }
+    
+    if (this._isEndTag('stylesheet')) { this._next(); this._next(); }
+    
+    let out = null;
+    if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+    
+    return { type: 'stylesheet', name, rules, out };
+  }
+  
+  // styling ".button" with background "blue" and color "white"
+  // One-liner CSS rule
+  _parseStyling() {
+    this._consume('styling');
+    if (this._is('for')) this._next();
+    const selector = this._parseValue();
+    const properties = [];
+    
+    if (this._is('with') || this._is('using')) this._next();
+    
+    while (this._peek()?.type === 'IDENT' && !this._is('into') && !this._is('called')) {
+      const prop = this._consumeIdent();
+      const value = this._parseValue();
+      properties.push({ prop, value });
+      if (this._is('and')) this._next();
+    }
+    
+    let out = null;
+    if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+    
+    return { type: 'cssRule', selector, properties, out };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // ENGLISH-READABLE PARSERS
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -11219,7 +11634,326 @@ class HLInterpreter {
         if (stmt.out) w._vars[stmt.out] = source;
         break;
       }
+      
+      // CSS Code Generators
+      case 'cssRule': {
+        const selector = this._resolveValue(stmt.selector);
+        const props = stmt.properties.map(p => {
+          const prop = this._cssPropertyName(p.prop);
+          const value = this._resolveValue(p.value);
+          return `  ${prop}: ${value};`;
+        }).join('\n');
+        const css = `${selector} {\n${props}\n}`;
+        if (stmt.out && w) w._vars[stmt.out] = css;
+        else if (w) this._appendCss(w, css);
+        break;
+      }
+      
+      case 'cssClass': {
+        const className = this._resolveValue(stmt.className);
+        const selector = className.startsWith('.') ? className : `.${className}`;
+        const props = stmt.properties.map(p => {
+          const prop = this._cssPropertyName(p.prop);
+          const value = this._resolveValue(p.value);
+          return `  ${prop}: ${value};`;
+        }).join('\n');
+        const css = `${selector} {\n${props}\n}`;
+        if (stmt.out && w) w._vars[stmt.out] = css;
+        else if (w) this._appendCss(w, css);
+        break;
+      }
+      
+      case 'cssId': {
+        const idName = this._resolveValue(stmt.idName);
+        const selector = idName.startsWith('#') ? idName : `#${idName}`;
+        const props = stmt.properties.map(p => {
+          const prop = this._cssPropertyName(p.prop);
+          const value = this._resolveValue(p.value);
+          return `  ${prop}: ${value};`;
+        }).join('\n');
+        const css = `${selector} {\n${props}\n}`;
+        if (stmt.out && w) w._vars[stmt.out] = css;
+        else if (w) this._appendCss(w, css);
+        break;
+      }
+      
+      case 'cssInline': {
+        const selector = this._resolveValue(stmt.selector);
+        const props = stmt.properties.map(p => {
+          const prop = this._cssPropertyName(p.prop);
+          const value = this._resolveValue(p.value);
+          return `${prop}: ${value}`;
+        }).join('; ');
+        const css = `${selector} { ${props}; }`;
+        if (stmt.out && w) w._vars[stmt.out] = css;
+        else if (w) this._appendCss(w, css);
+        break;
+      }
+      
+      case 'cssMedia': {
+        const query = this._resolveValue(stmt.query);
+        const rulesStr = stmt.rules.map(rule => {
+          const sel = this._resolveValue(rule.selector);
+          const props = rule.properties.map(p => {
+            const prop = this._cssPropertyName(p.prop);
+            const value = this._resolveValue(p.value);
+            return `    ${prop}: ${value};`;
+          }).join('\n');
+          return `  ${sel} {\n${props}\n  }`;
+        }).join('\n\n');
+        const css = `@media ${query} {\n${rulesStr}\n}`;
+        if (stmt.out && w) w._vars[stmt.out] = css;
+        else if (w) this._appendCss(w, css);
+        break;
+      }
+      
+      case 'cssKeyframes': {
+        const name = this._resolveValue(stmt.name);
+        const framesStr = stmt.frames.map(frame => {
+          const pos = this._resolveValue(frame.position);
+          const props = frame.properties.map(p => {
+            const prop = this._cssPropertyName(p.prop);
+            const value = this._resolveValue(p.value);
+            return `    ${prop}: ${value};`;
+          }).join('\n');
+          return `  ${pos} {\n${props}\n  }`;
+        }).join('\n\n');
+        const css = `@keyframes ${name} {\n${framesStr}\n}`;
+        if (stmt.out && w) w._vars[stmt.out] = css;
+        else if (w) this._appendCss(w, css);
+        break;
+      }
+      
+      case 'cssVariable': {
+        const name = this._resolveValue(stmt.name);
+        const varName = name.startsWith('--') ? name : `--${name}`;
+        const value = this._resolveValue(stmt.value);
+        const css = `${varName}: ${value};`;
+        if (stmt.out && w) w._vars[stmt.out] = css;
+        else if (w) this._appendCss(w, css);
+        break;
+      }
+      
+      case 'cssImport': {
+        const url = this._resolveValue(stmt.url);
+        const css = url.startsWith('http') || url.startsWith('/') 
+          ? `@import url('${url}');`
+          : `@import '${url}';`;
+        if (w) this._appendCss(w, css);
+        break;
+      }
+      
+      case 'cssFontFace': {
+        const family = this._resolveValue(stmt.family);
+        const props = [`  font-family: '${family}';`];
+        for (const p of stmt.properties) {
+          const prop = this._cssPropertyName(p.prop);
+          const value = this._resolveValue(p.value);
+          if (prop === 'src') {
+            // Handle font source URL
+            props.push(`  src: url('${value}');`);
+          } else {
+            props.push(`  ${prop}: ${value};`);
+          }
+        }
+        const css = `@font-face {\n${props.join('\n')}\n}`;
+        if (w) this._appendCss(w, css);
+        break;
+      }
+      
+      case 'stylesheet': {
+        if (!w) break;
+        const cssRules = [];
+        for (const rule of stmt.rules) {
+          if (rule.type === 'rule') {
+            const selector = this._resolveValue(rule.selector);
+            const props = rule.properties.map(p => {
+              const prop = this._cssPropertyName(p.prop);
+              const value = this._resolveValue(p.value);
+              return `  ${prop}: ${value};`;
+            }).join('\n');
+            cssRules.push(`${selector} {\n${props}\n}`);
+          } else if (rule.type === 'class') {
+            const className = this._resolveValue(rule.className);
+            const selector = className.startsWith('.') ? className : `.${className}`;
+            const props = rule.properties.map(p => {
+              const prop = this._cssPropertyName(p.prop);
+              const value = this._resolveValue(p.value);
+              return `  ${prop}: ${value};`;
+            }).join('\n');
+            cssRules.push(`${selector} {\n${props}\n}`);
+          } else if (rule.type === 'id') {
+            const idName = this._resolveValue(rule.idName);
+            const selector = idName.startsWith('#') ? idName : `#${idName}`;
+            const props = rule.properties.map(p => {
+              const prop = this._cssPropertyName(p.prop);
+              const value = this._resolveValue(p.value);
+              return `  ${prop}: ${value};`;
+            }).join('\n');
+            cssRules.push(`${selector} {\n${props}\n}`);
+          } else if (rule.type === 'cssMedia') {
+            const query = this._resolveValue(rule.query);
+            const rulesStr = rule.rules.map(r => {
+              const sel = this._resolveValue(r.selector);
+              const props = r.properties.map(p => {
+                const prop = this._cssPropertyName(p.prop);
+                const value = this._resolveValue(p.value);
+                return `    ${prop}: ${value};`;
+              }).join('\n');
+              return `  ${sel} {\n${props}\n  }`;
+            }).join('\n\n');
+            cssRules.push(`@media ${query} {\n${rulesStr}\n}`);
+          }
+        }
+        const css = cssRules.join('\n\n');
+        if (stmt.out) w._vars[stmt.out] = css;
+        else if (stmt.name) w._vars[stmt.name] = css;
+        else this._appendCss(w, css);
+        break;
+      }
     }
+  }
+  
+  // CSS Helper: Convert camelCase to kebab-case
+  _cssPropertyName(name) {
+    // Common English aliases to CSS property names
+    const aliases = {
+      'background': 'background',
+      'bgcolor': 'background-color',
+      'backgroundcolor': 'background-color',
+      'color': 'color',
+      'textcolor': 'color',
+      'fontsize': 'font-size',
+      'fontweight': 'font-weight',
+      'fontstyle': 'font-style',
+      'fontfamily': 'font-family',
+      'textdecoration': 'text-decoration',
+      'textalign': 'text-align',
+      'lineheight': 'line-height',
+      'letterspacing': 'letter-spacing',
+      'wordspacing': 'word-spacing',
+      'width': 'width',
+      'height': 'height',
+      'minwidth': 'min-width',
+      'maxwidth': 'max-width',
+      'minheight': 'min-height',
+      'maxheight': 'max-height',
+      'margin': 'margin',
+      'margintop': 'margin-top',
+      'marginbottom': 'margin-bottom',
+      'marginleft': 'margin-left',
+      'marginright': 'margin-right',
+      'padding': 'padding',
+      'paddingtop': 'padding-top',
+      'paddingbottom': 'padding-bottom',
+      'paddingleft': 'padding-left',
+      'paddingright': 'padding-right',
+      'border': 'border',
+      'bordertop': 'border-top',
+      'borderbottom': 'border-bottom',
+      'borderleft': 'border-left',
+      'borderright': 'border-right',
+      'borderwidth': 'border-width',
+      'bordercolor': 'border-color',
+      'borderstyle': 'border-style',
+      'borderradius': 'border-radius',
+      'boxshadow': 'box-shadow',
+      'textshadow': 'text-shadow',
+      'display': 'display',
+      'position': 'position',
+      'top': 'top',
+      'bottom': 'bottom',
+      'left': 'left',
+      'right': 'right',
+      'zindex': 'z-index',
+      'overflow': 'overflow',
+      'overflowx': 'overflow-x',
+      'overflowy': 'overflow-y',
+      'visibility': 'visibility',
+      'opacity': 'opacity',
+      'cursor': 'cursor',
+      'float': 'float',
+      'clear': 'clear',
+      'flex': 'flex',
+      'flexdirection': 'flex-direction',
+      'flexwrap': 'flex-wrap',
+      'justifycontent': 'justify-content',
+      'alignitems': 'align-items',
+      'alignself': 'align-self',
+      'aligncontent': 'align-content',
+      'order': 'order',
+      'flexgrow': 'flex-grow',
+      'flexshrink': 'flex-shrink',
+      'flexbasis': 'flex-basis',
+      'grid': 'grid',
+      'gridtemplate': 'grid-template',
+      'gridtemplatecolumns': 'grid-template-columns',
+      'gridtemplaterows': 'grid-template-rows',
+      'gridcolumn': 'grid-column',
+      'gridrow': 'grid-row',
+      'gap': 'gap',
+      'rowgap': 'row-gap',
+      'columngap': 'column-gap',
+      'transform': 'transform',
+      'transition': 'transition',
+      'animation': 'animation',
+      'animationduration': 'animation-duration',
+      'animationname': 'animation-name',
+      'animationdelay': 'animation-delay',
+      'backgroundimage': 'background-image',
+      'backgroundsize': 'background-size',
+      'backgroundposition': 'background-position',
+      'backgroundrepeat': 'background-repeat',
+      'liststyle': 'list-style',
+      'liststyletype': 'list-style-type',
+      'outline': 'outline',
+      'objectfit': 'object-fit',
+      'objectposition': 'object-position',
+      'whitespace': 'white-space',
+      'textoverflow': 'text-overflow',
+      'texttransform': 'text-transform',
+      'verticalign': 'vertical-align',
+      'pointerevents': 'pointer-events',
+      'userselect': 'user-select',
+      'content': 'content',
+      'filter': 'filter',
+      'backdropfilter': 'backdrop-filter',
+      'aspectratio': 'aspect-ratio',
+      'resize': 'resize',
+      'scrollbehavior': 'scroll-behavior',
+      'caretcolor': 'caret-color',
+      'accentcolor': 'accent-color',
+      'appearance': 'appearance',
+      'clippath': 'clip-path',
+      'maskimage': 'mask-image',
+      'mixblendmode': 'mix-blend-mode',
+      'isolation': 'isolation',
+      'perspective': 'perspective',
+      'transformstyle': 'transform-style',
+      'backfacevisibility': 'backface-visibility',
+      'willchange': 'will-change',
+      'containintrinsicsize': 'contain-intrinsic-size',
+      'contain': 'contain',
+      'src': 'src'
+    };
+    
+    const lower = name.toLowerCase();
+    if (aliases[lower]) return aliases[lower];
+    
+    // Convert camelCase to kebab-case
+    return name.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+  }
+  
+  // CSS Helper: Append CSS to output
+  _appendCss(w, css) {
+    if (!w._cssOutput) w._cssOutput = [];
+    w._cssOutput.push(css);
+  }
+  
+  // CSS Helper: Get accumulated CSS
+  _getCssOutput(w) {
+    if (!w._cssOutput) return '';
+    return w._cssOutput.join('\n\n');
   }
   
   // HTML Helper: Escape HTML special characters
