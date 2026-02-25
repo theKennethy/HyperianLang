@@ -37,6 +37,8 @@ const _ES_KEYWORDS = new Set([
   'reflect',
   // Intl
   'format', 'locale',
+  // Missing JS features
+  'url', 'abort', 'clone',
 ]);
 
 const _ES_ACTIONS = new Set([
@@ -98,6 +100,24 @@ const _ES_ACTIONS = new Set([
   'reflectget', 'reflectset', 'reflecthas', 'reflectdelete',
   // Intl
   'formatdate', 'formatnumber', 'currency',
+  // Missing JS features - Promise
+  'anyof', 'first',
+  // Missing JS features - Object
+  'defineprop', 'getdescriptor', 'getprototype', 'setprototype',
+  // Missing JS features - Array
+  'reduceright', 'copywithin', 'itemat', 'tosorted', 'toreversed',
+  // Missing JS features - String
+  'replaceall', 'charat', 'normalize', 'localecompare',
+  // Missing JS features - Number
+  'isinteger', 'isfinite', 'isnan', 'parsefloat', 'parseint', 'tofixed', 'toprecision',
+  // Missing JS features - Math
+  'trunc', 'cbrt', 'hypot', 'log2', 'log10', 'sinh', 'cosh', 'tanh',
+  // Missing JS features - URL
+  'url', 'searchparams',
+  // Missing JS features - Console
+  'table', 'group', 'groupend', 'timestart', 'timeend', 'assert',
+  // Missing JS features - Misc
+  'clone', 'microtask', 'abort', 'textencode', 'textdecode',
 ]);
 
 const _ES_PREPS = new Set([
@@ -186,6 +206,9 @@ const _ES_PREPS = new Set([
   'reflect', 'property', 'descriptor', 'configurable', 'enumerable', 'writable',
   // Intl
   'locale', 'currency', 'style', 'notation', 'compact', 'scientific',
+  // Missing JS features
+  'base', 'radix', 'digits', 'precision', 'form', 'signal', 'controller',
+  'normalized', 'compared', 'truncated', 'encoded', 'decoded',
 ]);
 
 const _ES_COMPARISONS = new Set([
@@ -1163,6 +1186,76 @@ class HLParser {
       case 'formatdate': return this._parseFormatDate();
       case 'formatnumber': return this._parseFormatNumber();
       case 'currency':  return this._parseCurrency();
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Promise.any
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'anyof':     return this._parsePromiseAny();
+      case 'first':     return this._parsePromiseAny();  // alias
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Object methods
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'defineprop': return this._parseDefineProperty();
+      case 'getdescriptor': return this._parseGetDescriptor();
+      case 'getprototype': return this._parseGetPrototype();
+      case 'setprototype': return this._parseSetPrototype();
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Array methods
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'reduceright': return this._parseReduceRight();
+      case 'copywithin': return this._parseCopyWithin();
+      case 'itemat':    return this._parseItemAt();
+      case 'tosorted':  return this._parseToSorted();
+      case 'toreversed': return this._parseToReversed();
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - String methods
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'replaceall': return this._parseReplaceAll();
+      case 'charat':    return this._parseCharAtStmt();
+      case 'normalize': return this._parseNormalize();
+      case 'localecompare': return this._parseLocaleCompare();
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Number methods
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'isinteger': return this._parseIsInteger();
+      case 'isfinite':  return this._parseIsFinite();
+      case 'isnan':     return this._parseIsNaN();
+      case 'parsefloat': return this._parseParseFloat();
+      case 'parseint':  return this._parseParseInt();
+      case 'tofixed':   return this._parseToFixed();
+      case 'toprecision': return this._parseToPrecision();
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Math methods
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'trunc':     return this._parseTrunc();
+      case 'cbrt':      return this._parseCbrt();
+      case 'hypot':     return this._parseHypot();
+      case 'log2':      return this._parseLog2();
+      case 'log10':     return this._parseLog10();
+      case 'sinh':      return this._parseSinh();
+      case 'cosh':      return this._parseCosh();
+      case 'tanh':      return this._parseTanh();
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - URL
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'url':       return this._parseURL();
+      case 'searchparams': return this._parseSearchParams();
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Console
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'table':     return this._parseConsoleTable();
+      case 'group':     return this._parseConsoleGroup();
+      case 'groupend':  return this._parseConsoleGroupEnd();
+      case 'timestart': return this._parseConsoleTime();
+      case 'timeend':   return this._parseConsoleTimeEnd();
+      case 'assert':    return this._parseConsoleAssert();
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Misc
+      // ═══════════════════════════════════════════════════════════════════════
+      case 'clone':     return this._parseClone();
+      case 'microtask': return this._parseMicrotask();
+      case 'abort':     return this._parseAbort();
+      case 'textencode': return this._parseTextEncode();
+      case 'textdecode': return this._parseTextDecode();
       default: this._next(); return null;
     }
   }
@@ -4016,6 +4109,463 @@ class HLParser {
     const out = this._consumeIdent();
     return { type: 'currency', value, currencyCode, locale, out };
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MISSING JS FEATURES - PARSERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Promise.any - "anyof promises into winner" or "first of promises into winner"
+  _parsePromiseAny() {
+    this._next(); // consume 'anyof' or 'first'
+    if (this._is('of')) this._next();
+    if (this._is('promises')) this._next();
+    const promises = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'promiseAny', promises, out };
+  }
+
+  // Object.defineProperty - "defineprop obj 'name' with value 123"
+  _parseDefineProperty() {
+    this._consume('defineprop');
+    const obj = this._consumeIdent();
+    const prop = this._parseValue();
+    let descriptor = {};
+    if (this._is('with')) {
+      this._next();
+      // Parse descriptor properties
+      while (!this._is('into') && !this._is('called') && this._peek()) {
+        const key = this._consumeIdent();
+        const val = this._parseValue();
+        descriptor[key] = val;
+        if (this._is('and')) this._next();
+      }
+    }
+    return { type: 'defineProperty', obj, prop, descriptor };
+  }
+
+  // Object.getOwnPropertyDescriptor - "getdescriptor obj 'name' into desc"
+  _parseGetDescriptor() {
+    this._consume('getdescriptor');
+    const obj = this._consumeIdent();
+    const prop = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'getDescriptor', obj, prop, out };
+  }
+
+  // Object.getPrototypeOf - "getprototype obj into proto"
+  _parseGetPrototype() {
+    this._consume('getprototype');
+    if (this._is('of')) this._next();
+    const obj = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'getPrototype', obj, out };
+  }
+
+  // Object.setPrototypeOf - "setprototype obj to proto"
+  _parseSetPrototype() {
+    this._consume('setprototype');
+    if (this._is('of')) this._next();
+    const obj = this._consumeIdent();
+    if (this._is('to')) this._next();
+    const proto = this._consumeIdent();
+    return { type: 'setPrototype', obj, proto };
+  }
+
+  // Array.reduceRight - "reduceright arr with fn starting 0 into result"
+  _parseReduceRight() {
+    this._consume('reduceright');
+    const arr = this._consumeIdent();
+    if (this._is('with') || this._is('using')) this._next();
+    const fn = this._consumeIdent();
+    let initial = null;
+    if (this._is('starting') || this._is('from')) {
+      this._next();
+      initial = this._parseValue();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'reduceRight', arr, fn, initial, out };
+  }
+
+  // Array.copyWithin - "copywithin arr to 0 from 3 to 5"
+  _parseCopyWithin() {
+    this._consume('copywithin');
+    const arr = this._consumeIdent();
+    if (this._is('to')) this._next();
+    const target = this._parseValue();
+    let start = null, end = null;
+    if (this._is('from')) {
+      this._next();
+      start = this._parseValue();
+    }
+    if (this._is('to')) {
+      this._next();
+      end = this._parseValue();
+    }
+    return { type: 'copyWithin', arr, target, start, end };
+  }
+
+  // Array.at - "itemat arr -1 into last"
+  _parseItemAt() {
+    this._consume('itemat');
+    const arr = this._consumeIdent();
+    const index = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'itemAt', arr, index, out };
+  }
+
+  // Array.toSorted - "tosorted arr into sorted"
+  _parseToSorted() {
+    this._consume('tosorted');
+    const arr = this._consumeIdent();
+    let fn = null;
+    if (this._is('with') || this._is('using')) {
+      this._next();
+      fn = this._consumeIdent();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'toSorted', arr, fn, out };
+  }
+
+  // Array.toReversed - "toreversed arr into reversed"
+  _parseToReversed() {
+    this._consume('toreversed');
+    const arr = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'toReversed', arr, out };
+  }
+
+  // String.replaceAll - "replaceall str 'old' with 'new' into result"
+  _parseReplaceAll() {
+    this._consume('replaceall');
+    const str = this._consumeIdent();
+    const search = this._parseValue();
+    if (this._is('with')) this._next();
+    const replacement = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'replaceAll', str, search, replacement, out };
+  }
+
+  // String.charAt (statement) - "charat str 0 into char"
+  _parseCharAtStmt() {
+    this._consume('charat');
+    const str = this._consumeIdent();
+    const index = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'charAt', str, index, out };
+  }
+
+  // String.normalize - "normalize str 'NFC' into normalized"
+  _parseNormalize() {
+    this._consume('normalize');
+    const str = this._consumeIdent();
+    let form = 'NFC';
+    if (this._peek()?.type === 'STRING') {
+      form = this._parseValue();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'normalize', str, form, out };
+  }
+
+  // String.localeCompare - "localecompare a with b into result"
+  _parseLocaleCompare() {
+    this._consume('localecompare');
+    const a = this._consumeIdent();
+    if (this._is('with') || this._is('to')) this._next();
+    const b = this._consumeIdent();
+    let locale = null;
+    if (this._is('using') || this._is('locale')) {
+      this._next();
+      if (this._is('locale')) this._next();
+      locale = this._parseValue();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'localeCompare', a, b, locale, out };
+  }
+
+  // Number.isInteger - "isinteger value into result"
+  _parseIsInteger() {
+    this._consume('isinteger');
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'isInteger', value, out };
+  }
+
+  // Number.isFinite - "isfinite value into result"
+  _parseIsFinite() {
+    this._consume('isfinite');
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'isFinite', value, out };
+  }
+
+  // Number.isNaN - "isnan value into result"
+  _parseIsNaN() {
+    this._consume('isnan');
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'isNaN', value, out };
+  }
+
+  // parseFloat - "parsefloat str into num"
+  _parseParseFloat() {
+    this._consume('parsefloat');
+    const str = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'parseFloat', str, out };
+  }
+
+  // parseInt - "parseint str 10 into num" (with optional radix)
+  _parseParseInt() {
+    this._consume('parseint');
+    const str = this._parseValue();
+    let radix = null;
+    if (this._peek()?.type === 'NUMBER') {
+      radix = this._parseValue();
+    } else if (this._is('base')) {
+      this._next();
+      radix = this._parseValue();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'parseInt', str, radix, out };
+  }
+
+  // toFixed - "tofixed num 2 into str"
+  _parseToFixed() {
+    this._consume('tofixed');
+    const num = this._parseValue();
+    const digits = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'toFixed', num, digits, out };
+  }
+
+  // toPrecision - "toprecision num 5 into str"
+  _parseToPrecision() {
+    this._consume('toprecision');
+    const num = this._parseValue();
+    const precision = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'toPrecision', num, precision, out };
+  }
+
+  // Math.trunc - "trunc value into result"
+  _parseTrunc() {
+    this._consume('trunc');
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'trunc', value, out };
+  }
+
+  // Math.cbrt - "cbrt value into result"
+  _parseCbrt() {
+    this._consume('cbrt');
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'cbrt', value, out };
+  }
+
+  // Math.hypot - "hypot a b into result" or "hypot a b c into result"
+  _parseHypot() {
+    this._consume('hypot');
+    const values = [];
+    while (!this._is('into') && !this._is('called') && this._peek()) {
+      values.push(this._parseValue());
+      if (this._is('and')) this._next();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'hypot', values, out };
+  }
+
+  // Math.log2 - "log2 value into result"
+  _parseLog2() {
+    this._consume('log2');
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'log2', value, out };
+  }
+
+  // Math.log10 - "log10 value into result"
+  _parseLog10() {
+    this._consume('log10');
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'log10', value, out };
+  }
+
+  // Math.sinh - "sinh value into result"
+  _parseSinh() {
+    this._consume('sinh');
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'sinh', value, out };
+  }
+
+  // Math.cosh - "cosh value into result"
+  _parseCosh() {
+    this._consume('cosh');
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'cosh', value, out };
+  }
+
+  // Math.tanh - "tanh value into result"
+  _parseTanh() {
+    this._consume('tanh');
+    const value = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'tanh', value, out };
+  }
+
+  // URL - "url 'https://example.com' into myUrl"
+  _parseURL() {
+    this._consume('url');
+    const urlStr = this._parseValue();
+    let base = null;
+    if (this._is('base') || this._is('from')) {
+      this._next();
+      base = this._parseValue();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'url', urlStr, base, out };
+  }
+
+  // URLSearchParams - "searchparams 'a=1&b=2' into params"
+  _parseSearchParams() {
+    this._consume('searchparams');
+    const init = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'searchParams', init, out };
+  }
+
+  // console.table - "table data"
+  _parseConsoleTable() {
+    this._consume('table');
+    const data = this._consumeIdent();
+    return { type: 'consoleTable', data };
+  }
+
+  // console.group - "group 'label'"
+  _parseConsoleGroup() {
+    this._consume('group');
+    let label = null;
+    if (this._peek()?.type === 'STRING') {
+      label = this._parseValue();
+    }
+    return { type: 'consoleGroup', label };
+  }
+
+  // console.groupEnd - "groupend"
+  _parseConsoleGroupEnd() {
+    this._consume('groupend');
+    return { type: 'consoleGroupEnd' };
+  }
+
+  // console.time - "timestart 'label'"
+  _parseConsoleTime() {
+    this._consume('timestart');
+    const label = this._parseValue();
+    return { type: 'consoleTime', label };
+  }
+
+  // console.timeEnd - "timeend 'label'"
+  _parseConsoleTimeEnd() {
+    this._consume('timeend');
+    const label = this._parseValue();
+    return { type: 'consoleTimeEnd', label };
+  }
+
+  // console.assert - "assert condition 'message'"
+  _parseConsoleAssert() {
+    this._consume('assert');
+    const condition = this._parseCondition();
+    let message = null;
+    if (this._peek()?.type === 'STRING') {
+      message = this._parseValue();
+    }
+    return { type: 'consoleAssert', condition, message };
+  }
+
+  // structuredClone - "clone obj into copy"
+  _parseClone() {
+    this._consume('clone');
+    const obj = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'clone', obj, out };
+  }
+
+  // queueMicrotask - "microtask fn"
+  _parseMicrotask() {
+    this._consume('microtask');
+    const fn = this._consumeIdent();
+    return { type: 'microtask', fn };
+  }
+
+  // AbortController - "abort controller into ctrl signal into sig"
+  _parseAbort() {
+    this._consume('abort');
+    if (this._is('controller')) this._next();
+    if (this._is('into') || this._is('called')) this._next();
+    const controller = this._consumeIdent();
+    let signal = null;
+    if (this._is('signal')) {
+      this._next();
+      if (this._is('into') || this._is('called')) this._next();
+      signal = this._consumeIdent();
+    }
+    return { type: 'abortController', controller, signal };
+  }
+
+  // TextEncoder - "textencode str into bytes"
+  _parseTextEncode() {
+    this._consume('textencode');
+    const str = this._parseValue();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'textEncode', str, out };
+  }
+
+  // TextDecoder - "textdecode bytes into str"
+  _parseTextDecode() {
+    this._consume('textdecode');
+    const bytes = this._consumeIdent();
+    let encoding = 'utf-8';
+    if (this._is('as') || this._is('using')) {
+      this._next();
+      const enc = this._parseValue();
+      encoding = enc.value || enc;
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'textDecode', bytes, encoding, out };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -6349,6 +6899,393 @@ class HLInterpreter {
         const locale = stmt.locale || 'en-US';
         const formatter = new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode });
         w._vars[stmt.out] = formatter.format(value);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Promise.any
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'promiseAny': {
+        if (!w) break;
+        const promises = w._vars[stmt.promises] || [];
+        w._vars[stmt.out] = await Promise.any(promises);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Object methods
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'defineProperty': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj];
+        const prop = this._resolveValue(stmt.prop);
+        const descriptor = {};
+        for (const [k, v] of Object.entries(stmt.descriptor || {})) {
+          descriptor[k] = this._resolveValue(v);
+        }
+        if (obj && typeof obj === 'object') {
+          Object.defineProperty(obj, prop, descriptor);
+        }
+        break;
+      }
+
+      case 'getDescriptor': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj];
+        const prop = this._resolveValue(stmt.prop);
+        w._vars[stmt.out] = Object.getOwnPropertyDescriptor(obj || {}, prop);
+        break;
+      }
+
+      case 'getPrototype': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj];
+        w._vars[stmt.out] = Object.getPrototypeOf(obj || {});
+        break;
+      }
+
+      case 'setPrototype': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj];
+        const proto = w._vars[stmt.proto];
+        if (obj && proto !== undefined) {
+          Object.setPrototypeOf(obj, proto);
+        }
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Array methods
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'reduceRight': {
+        if (!w) break;
+        const arr = w._vars[stmt.arr] || [];
+        const fn = w._vars[stmt.fn] || this._functions.get(stmt.fn);
+        const initial = stmt.initial ? this._resolveValue(stmt.initial) : undefined;
+        if (typeof fn === 'function') {
+          w._vars[stmt.out] = initial !== undefined ? arr.reduceRight(fn, initial) : arr.reduceRight(fn);
+        } else if (fn && fn.body) {
+          let acc = initial !== undefined ? initial : arr[arr.length - 1];
+          const startIdx = initial !== undefined ? arr.length - 1 : arr.length - 2;
+          for (let i = startIdx; i >= 0; i--) {
+            const localVars = { ...w._vars };
+            if (fn.params && fn.params.length >= 2) {
+              localVars[fn.params[0]] = acc;
+              localVars[fn.params[1]] = arr[i];
+            }
+            const savedVars = { ...w._vars };
+            w._vars = localVars;
+            await this._executeBody(fn.body);
+            if (w._vars._returnValue !== undefined) {
+              acc = w._vars._returnValue;
+              delete w._vars._returnValue;
+            }
+            w._vars = savedVars;
+          }
+          w._vars[stmt.out] = acc;
+        }
+        break;
+      }
+
+      case 'copyWithin': {
+        if (!w) break;
+        const arr = w._vars[stmt.arr] || [];
+        const target = this._resolveValue(stmt.target);
+        const start = stmt.start ? this._resolveValue(stmt.start) : undefined;
+        const end = stmt.end ? this._resolveValue(stmt.end) : undefined;
+        arr.copyWithin(target, start, end);
+        break;
+      }
+
+      case 'itemAt': {
+        if (!w) break;
+        const arr = w._vars[stmt.arr] || [];
+        const index = this._resolveValue(stmt.index);
+        w._vars[stmt.out] = arr.at ? arr.at(index) : arr[index < 0 ? arr.length + index : index];
+        break;
+      }
+
+      case 'toSorted': {
+        if (!w) break;
+        const arr = w._vars[stmt.arr] || [];
+        const fn = stmt.fn ? (w._vars[stmt.fn] || this._functions.get(stmt.fn)) : undefined;
+        w._vars[stmt.out] = arr.toSorted ? arr.toSorted(fn) : [...arr].sort(fn);
+        break;
+      }
+
+      case 'toReversed': {
+        if (!w) break;
+        const arr = w._vars[stmt.arr] || [];
+        w._vars[stmt.out] = arr.toReversed ? arr.toReversed() : [...arr].reverse();
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - String methods
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'replaceAll': {
+        if (!w) break;
+        const str = String(w._vars[stmt.str] || '');
+        const search = this._resolveValue(stmt.search);
+        const replacement = this._resolveValue(stmt.replacement);
+        w._vars[stmt.out] = str.replaceAll(search, replacement);
+        break;
+      }
+
+      case 'charAt': {
+        if (!w) break;
+        const str = String(w._vars[stmt.str] || '');
+        const index = this._resolveValue(stmt.index);
+        w._vars[stmt.out] = str.charAt(index);
+        break;
+      }
+
+      case 'normalize': {
+        if (!w) break;
+        const str = String(w._vars[stmt.str] || '');
+        const form = this._resolveValue(stmt.form) || 'NFC';
+        w._vars[stmt.out] = str.normalize(form);
+        break;
+      }
+
+      case 'localeCompare': {
+        if (!w) break;
+        const a = String(w._vars[stmt.a] || '');
+        const b = String(w._vars[stmt.b] || '');
+        const locale = stmt.locale ? this._resolveValue(stmt.locale) : undefined;
+        w._vars[stmt.out] = a.localeCompare(b, locale);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Number methods
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'isInteger': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        w._vars[stmt.out] = Number.isInteger(value);
+        break;
+      }
+
+      case 'isFinite': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        w._vars[stmt.out] = Number.isFinite(value);
+        break;
+      }
+
+      case 'isNaN': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        w._vars[stmt.out] = Number.isNaN(value);
+        break;
+      }
+
+      case 'parseFloat': {
+        if (!w) break;
+        const str = this._resolveValue(stmt.str);
+        w._vars[stmt.out] = parseFloat(str);
+        break;
+      }
+
+      case 'parseInt': {
+        if (!w) break;
+        const str = this._resolveValue(stmt.str);
+        const radix = stmt.radix ? this._resolveValue(stmt.radix) : 10;
+        w._vars[stmt.out] = parseInt(str, radix);
+        break;
+      }
+
+      case 'toFixed': {
+        if (!w) break;
+        const num = this._resolveValue(stmt.num);
+        const digits = this._resolveValue(stmt.digits);
+        w._vars[stmt.out] = Number(num).toFixed(digits);
+        break;
+      }
+
+      case 'toPrecision': {
+        if (!w) break;
+        const num = this._resolveValue(stmt.num);
+        const precision = this._resolveValue(stmt.precision);
+        w._vars[stmt.out] = Number(num).toPrecision(precision);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Math methods
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'trunc': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        w._vars[stmt.out] = Math.trunc(value);
+        break;
+      }
+
+      case 'cbrt': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        w._vars[stmt.out] = Math.cbrt(value);
+        break;
+      }
+
+      case 'hypot': {
+        if (!w) break;
+        const values = (stmt.values || []).map(v => this._resolveValue(v));
+        w._vars[stmt.out] = Math.hypot(...values);
+        break;
+      }
+
+      case 'log2': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        w._vars[stmt.out] = Math.log2(value);
+        break;
+      }
+
+      case 'log10': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        w._vars[stmt.out] = Math.log10(value);
+        break;
+      }
+
+      case 'sinh': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        w._vars[stmt.out] = Math.sinh(value);
+        break;
+      }
+
+      case 'cosh': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        w._vars[stmt.out] = Math.cosh(value);
+        break;
+      }
+
+      case 'tanh': {
+        if (!w) break;
+        const value = this._resolveValue(stmt.value);
+        w._vars[stmt.out] = Math.tanh(value);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - URL
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'url': {
+        if (!w) break;
+        const urlStr = this._resolveValue(stmt.urlStr);
+        const base = stmt.base ? this._resolveValue(stmt.base) : undefined;
+        w._vars[stmt.out] = base ? new URL(urlStr, base) : new URL(urlStr);
+        break;
+      }
+
+      case 'searchParams': {
+        if (!w) break;
+        const init = this._resolveValue(stmt.init);
+        w._vars[stmt.out] = new URLSearchParams(init);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Console
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'consoleTable': {
+        if (!w) break;
+        const data = w._vars[stmt.data];
+        console.table(data);
+        break;
+      }
+
+      case 'consoleGroup': {
+        const label = stmt.label ? this._resolveValue(stmt.label) : undefined;
+        label ? console.group(label) : console.group();
+        break;
+      }
+
+      case 'consoleGroupEnd': {
+        console.groupEnd();
+        break;
+      }
+
+      case 'consoleTime': {
+        const label = this._resolveValue(stmt.label);
+        console.time(label);
+        break;
+      }
+
+      case 'consoleTimeEnd': {
+        const label = this._resolveValue(stmt.label);
+        console.timeEnd(label);
+        break;
+      }
+
+      case 'consoleAssert': {
+        if (!w) break;
+        const condition = this._evalCondition(stmt.condition, w, {});
+        const message = stmt.message ? this._resolveValue(stmt.message) : undefined;
+        console.assert(condition, message);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // MISSING JS FEATURES - Misc
+      // ═══════════════════════════════════════════════════════════════════════
+
+      case 'clone': {
+        if (!w) break;
+        const obj = w._vars[stmt.obj];
+        w._vars[stmt.out] = structuredClone ? structuredClone(obj) : JSON.parse(JSON.stringify(obj));
+        break;
+      }
+
+      case 'microtask': {
+        if (!w) break;
+        const fn = w._vars[stmt.fn] || this._functions.get(stmt.fn);
+        if (typeof fn === 'function') {
+          queueMicrotask(fn);
+        } else if (fn && fn.body) {
+          queueMicrotask(async () => {
+            await this._executeBody(fn.body);
+          });
+        }
+        break;
+      }
+
+      case 'abortController': {
+        if (!w) break;
+        const controller = new AbortController();
+        w._vars[stmt.controller] = controller;
+        if (stmt.signal) {
+          w._vars[stmt.signal] = controller.signal;
+        }
+        break;
+      }
+
+      case 'textEncode': {
+        if (!w) break;
+        const str = this._resolveValue(stmt.str);
+        const encoder = new TextEncoder();
+        w._vars[stmt.out] = encoder.encode(str);
+        break;
+      }
+
+      case 'textDecode': {
+        if (!w) break;
+        const bytes = w._vars[stmt.bytes];
+        const encoding = stmt.encoding || 'utf-8';
+        const decoder = new TextDecoder(encoding);
+        w._vars[stmt.out] = decoder.decode(bytes);
         break;
       }
     }
