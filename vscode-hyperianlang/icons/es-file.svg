@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <path d="M5 4h16l6 6v18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="#22c55e"/>
+  <path d="M21 4v6h6" fill="#16a34a"/>
+  <path d="M21 4l6 6h-6z" fill="#4ade80"/>
+  <text x="14" y="22" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="white" text-anchor="middle">ES</text>
+</svg>

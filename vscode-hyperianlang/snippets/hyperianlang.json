@@ -1,0 +1,190 @@
+{
+  "Let Variable": {
+    "prefix": "let",
+    "body": ["let ${1:the variable name} be ${2:value}"],
+    "description": "Declare a variable with English syntax"
+  },
+  "Let Multi-word Variable": {
+    "prefix": "letm",
+    "body": ["let the ${1:variable name} be ${2:value}"],
+    "description": "Declare a multi-word variable"
+  },
+  "Set Variable": {
+    "prefix": "set",
+    "body": ["set ${1:variable} to ${2:value}"],
+    "description": "Set a variable to a new value"
+  },
+  "Increase": {
+    "prefix": "increase",
+    "body": ["increase ${1:variable} by ${2:amount}"],
+    "description": "Increase a variable by an amount"
+  },
+  "Decrease": {
+    "prefix": "decrease",
+    "body": ["decrease ${1:variable} by ${2:amount}"],
+    "description": "Decrease a variable by an amount"
+  },
+  "If Then": {
+    "prefix": "if",
+    "body": [
+      "if ${1:condition} then",
+      "  ${2:// code}",
+      "end"
+    ],
+    "description": "If-then block"
+  },
+  "If Then Else": {
+    "prefix": "ife",
+    "body": [
+      "if ${1:condition} then",
+      "  ${2:// if true}",
+      "else",
+      "  ${3:// if false}",
+      "end"
+    ],
+    "description": "If-then-else block"
+  },
+  "If Greater Than": {
+    "prefix": "ifgt",
+    "body": [
+      "if ${1:variable} is greater than ${2:value} then",
+      "  ${3:// code}",
+      "end"
+    ],
+    "description": "If greater than comparison"
+  },
+  "If Less Than": {
+    "prefix": "iflt",
+    "body": [
+      "if ${1:variable} is less than ${2:value} then",
+      "  ${3:// code}",
+      "end"
+    ],
+    "description": "If less than comparison"
+  },
+  "Repeat Times": {
+    "prefix": "repeat",
+    "body": [
+      "repeat ${1:3} times",
+      "  ${2:// code}",
+      "end"
+    ],
+    "description": "Repeat a block N times"
+  },
+  "While Loop": {
+    "prefix": "while",
+    "body": [
+      "while ${1:condition} then",
+      "  ${2:// code}",
+      "end"
+    ],
+    "description": "While loop"
+  },
+  "When Event": {
+    "prefix": "when",
+    "body": [
+      "when ${1:event} then",
+      "  ${2:// code}",
+      "end"
+    ],
+    "description": "Event handler"
+  },
+  "When Game Starts": {
+    "prefix": "whenstart",
+    "body": [
+      "when game starts then",
+      "  ${1:// initialization}",
+      "end"
+    ],
+    "description": "Game start event"
+  },
+  "Define Function": {
+    "prefix": "func",
+    "body": [
+      "define function \"${1:function name}\" with ${2:param1} and ${3:param2}",
+      "  ${4:// function body}",
+      "  return ${5:result}",
+      "end"
+    ],
+    "description": "Define a function"
+  },
+  "Call Function": {
+    "prefix": "call",
+    "body": ["call function \"${1:function name}\" with ${2:args} into ${3:result}"],
+    "description": "Call a function"
+  },
+  "Match Statement": {
+    "prefix": "match",
+    "body": [
+      "match ${1:variable}",
+      "  on ${2:\"value1\"} then ${3:action1}",
+      "  on ${4:\"value2\"} then ${5:action2}",
+      "  else ${6:defaultAction}",
+      "end"
+    ],
+    "description": "Match/switch statement"
+  },
+  "Transform Array": {
+    "prefix": "transform",
+    "body": ["transform ${1:array} with ${2:item} into ${3:item times 2} into ${4:result}"],
+    "description": "Transform (map) an array"
+  },
+  "Reduce Array": {
+    "prefix": "reduce",
+    "body": [
+      "reduce ${1:array} with ${2:total} and ${3:value} starting from ${4:0} into ${5:result}",
+      "  let ${2:total} be ${2:total} plus ${3:value}",
+      "end"
+    ],
+    "description": "Reduce an array to a single value"
+  },
+  "Every Check": {
+    "prefix": "every",
+    "body": ["every ${1:item} in ${2:array} is ${3:greater than 0} into ${4:result}"],
+    "description": "Check if every item passes a condition"
+  },
+  "Any Check": {
+    "prefix": "any",
+    "body": ["any ${1:item} in ${2:array} is ${3:greater than 10} into ${4:result}"],
+    "description": "Check if any item passes a condition"
+  },
+  "Array Literal": {
+    "prefix": "arr",
+    "body": ["let ${1:items} be [${2:1, 2, 3}]"],
+    "description": "Create an array"
+  },
+  "Object Literal": {
+    "prefix": "obj",
+    "body": ["let ${1:data} be {\"${2:key}\": ${3:value}}"],
+    "description": "Create an object"
+  },
+  "Print": {
+    "prefix": "print",
+    "body": ["print ${1:value}"],
+    "description": "Print a value"
+  },
+  "Copy Object": {
+    "prefix": "copy",
+    "body": ["copy ${1:source} into ${2:destination}"],
+    "description": "Deep copy an object or array"
+  },
+  "Assign Merge": {
+    "prefix": "assign",
+    "body": ["assign ${1:obj1} and ${2:obj2} into ${3:result}"],
+    "description": "Merge objects"
+  },
+  "Join Path": {
+    "prefix": "joinpath",
+    "body": ["join path ${1:folder} and ${2:file} into ${3:fullpath}"],
+    "description": "Join path segments"
+  },
+  "Game Player": {
+    "prefix": "player",
+    "body": [
+      "let the player health be ${1:100}",
+      "let the player gold be ${2:0}",
+      "let the player level be ${3:1}"
+    ],
+    "description": "Initialize player variables"
+  }
+}

@@ -1,0 +1,183 @@
+{
+  "name": "HyperianLang Dark",
+  "type": "dark",
+  "colors": {
+    "editor.background": "#0d1117",
+    "editor.foreground": "#c9d1d9",
+    "editor.lineHighlightBackground": "#161b22",
+    "editor.selectionBackground": "#264f78",
+    "editorCursor.foreground": "#58a6ff",
+    "editorLineNumber.foreground": "#484f58",
+    "editorLineNumber.activeForeground": "#c9d1d9",
+    "editor.inactiveSelectionBackground": "#1d2d3e"
+  },
+  "tokenColors": [
+    {
+      "name": "Comments",
+      "scope": ["comment", "punctuation.definition.comment"],
+      "settings": {
+        "foreground": "#8b949e",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "name": "Strings",
+      "scope": ["string", "string.quoted"],
+      "settings": {
+        "foreground": "#a5d6ff"
+      }
+    },
+    {
+      "name": "Numbers",
+      "scope": ["constant.numeric"],
+      "settings": {
+        "foreground": "#79c0ff"
+      }
+    },
+    {
+      "name": "Boolean & Null",
+      "scope": ["constant.language.boolean", "constant.language.null"],
+      "settings": {
+        "foreground": "#ff7b72"
+      }
+    },
+    {
+      "name": "Keywords - Control Flow",
+      "scope": ["keyword.control"],
+      "settings": {
+        "foreground": "#ff7b72",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Storage - let, define, function",
+      "scope": ["storage.type", "storage.modifier"],
+      "settings": {
+        "foreground": "#ff7b72"
+      }
+    },
+    {
+      "name": "Function Names",
+      "scope": ["entity.name.function"],
+      "settings": {
+        "foreground": "#d2a8ff",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Built-in Functions",
+      "scope": ["support.function.builtin"],
+      "settings": {
+        "foreground": "#7ee787"
+      }
+    },
+    {
+      "name": "Game Functions",
+      "scope": ["support.function.game"],
+      "settings": {
+        "foreground": "#ffa657"
+      }
+    },
+    {
+      "name": "Data Functions",
+      "scope": ["support.function.data"],
+      "settings": {
+        "foreground": "#79c0ff"
+      }
+    },
+    {
+      "name": "Array Functions - transform, reduce, every, any",
+      "scope": ["support.function.array"],
+      "settings": {
+        "foreground": "#f778ba"
+      }
+    },
+    {
+      "name": "Path Functions",
+      "scope": ["support.function.path"],
+      "settings": {
+        "foreground": "#ffc658"
+      }
+    },
+    {
+      "name": "Server Functions",
+      "scope": ["support.function.server"],
+      "settings": {
+        "foreground": "#56d4dd"
+      }
+    },
+    {
+      "name": "Comparison Operators",
+      "scope": ["keyword.operator.comparison"],
+      "settings": {
+        "foreground": "#ff7b72"
+      }
+    },
+    {
+      "name": "Logical Operators - and, or",
+      "scope": ["keyword.operator.logical"],
+      "settings": {
+        "foreground": "#ff7b72",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Arithmetic Word Operators - plus, minus, times",
+      "scope": ["keyword.operator.arithmetic.word"],
+      "settings": {
+        "foreground": "#7ee787",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "name": "Symbol Operators",
+      "scope": ["keyword.operator.arithmetic", "keyword.operator.comparison.symbol", "keyword.operator.assignment"],
+      "settings": {
+        "foreground": "#ff7b72"
+      }
+    },
+    {
+      "name": "Prepositions - to, by, from, with, into",
+      "scope": ["keyword.other.preposition"],
+      "settings": {
+        "foreground": "#8b949e"
+      }
+    },
+    {
+      "name": "Units - times, seconds, frames",
+      "scope": ["keyword.other.unit"],
+      "settings": {
+        "foreground": "#79c0ff"
+      }
+    },
+    {
+      "name": "Articles - the, a, an (dimmed)",
+      "scope": ["punctuation.definition.article"],
+      "settings": {
+        "foreground": "#484f58",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "name": "Event Variables",
+      "scope": ["variable.other.event"],
+      "settings": {
+        "foreground": "#ffa657"
+      }
+    },
+    {
+      "name": "Math Constants",
+      "scope": ["support.constant.math"],
+      "settings": {
+        "foreground": "#79c0ff"
+      }
+    },
+    {
+      "name": "Escape Characters",
+      "scope": ["constant.character.escape"],
+      "settings": {
+        "foreground": "#7ee787"
+      }
+    }
+  ]
+}

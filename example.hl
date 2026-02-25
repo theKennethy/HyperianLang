@@ -1,0 +1,132 @@
+// ═══════════════════════════════════════════════════════════════
+// HyperianLang Example - Natural English-Style Scripting
+// ═══════════════════════════════════════════════════════════════
+
+/*
+  HyperianLang lets you write code that reads like English.
+  Perfect for game scripting, automation, and learning to code.
+*/
+
+// ─── Variables ──────────────────────────────────────────────────
+let the player health be 100
+let the player gold be 50
+let the max health be 100
+let the current level be 1
+
+// ─── Math with English Words ────────────────────────────────────
+let the doubled health be the player health times 2
+let the bonus gold be 100 divided by 4
+let the damage be 25 minus 5
+let the total be 10 plus 20 plus 30
+
+// ─── Arrays & Objects ───────────────────────────────────────────
+let the inventory be ["sword", "shield", "potion"]
+let the high scores be [1000, 850, 720, 650, 500]
+
+let the player stats be {
+  "strength": 15,
+  "defense": 10,
+  "magic": 8
+}
+
+// ─── Conditionals ───────────────────────────────────────────────
+if the player health is greater than 0 then
+  print "The hero stands ready for battle!"
+else
+  print "Game Over - The hero has fallen."
+end
+
+if the player gold is less than 100 then
+  print "You need more gold to buy that item."
+end
+
+// ─── Loops ──────────────────────────────────────────────────────
+repeat 3 times
+  increase the player gold by 10
+  print "Found some gold!"
+end
+
+while the current level is less than 5
+  increase the current level by 1
+  print the current level
+end
+
+// ─── Transform (Map) ────────────────────────────────────────────
+let the scores be [10, 20, 30, 40, 50]
+transform the scores with n into n times 2 into doubled scores
+// Result: [20, 40, 60, 80, 100]
+
+// ─── Reduce (Fold) ──────────────────────────────────────────────
+reduce the high scores with total and score starting from 0 into grand total
+  let total be total plus score
+end
+// Result: 3720
+
+// ─── Every & Any (Validation) ───────────────────────────────────
+every item in the scores is greater than 0 into all positive
+any item in the scores is greater than 100 into has bonus
+
+// ─── Match (Switch) ─────────────────────────────────────────────
+let the weapon type be "sword"
+
+match the weapon type
+  on "sword" then print "A mighty blade!"
+  on "bow" then print "Strike from afar!"
+  on "staff" then print "Magical power!"
+  else print "Unknown weapon type"
+end
+
+// ─── Functions ──────────────────────────────────────────────────
+define function "calculate damage" with base damage and multiplier
+  let result be base damage times multiplier
+  return result
+end
+
+call function "calculate damage" with 10 and 3 into the final damage
+print "Damage dealt: "
+print the final damage
+
+define function "heal player" with heal amount
+  increase the player health by heal amount
+  if the player health is greater than the max health then
+    set the player health to the max health
+  end
+  return the player health
+end
+
+// ─── Copy & Assign (Object Operations) ──────────────────────────
+copy the player stats into the saved stats
+let the bonus stats be {"luck": 5}
+assign the player stats and the bonus stats into the full stats
+
+// ─── Path Operations ────────────────────────────────────────────
+let the folder be "assets/images"
+let the filename be "hero.png"
+join path the folder and the filename into the full path
+// Result: "assets/images/hero.png"
+
+basename of the full path into just the name
+// Result: "hero.png"
+
+// ─── Event Handlers (Game Scripting) ────────────────────────────
+when game starts then
+  print "Welcome to the Adventure!"
+  set the player health to 100
+  set the player gold to 0
+end
+
+when player clicks on enemy then
+  decrease the enemy health by the player damage
+  if the enemy health is less than 1 then
+    print "Enemy defeated!"
+    increase the player gold by 25
+  end
+end
+
+// ─── Math Constants ─────────────────────────────────────────────
+let pi value be math pi
+let e value be math e
+
+// ═══════════════════════════════════════════════════════════════
+// End of Example - Happy Coding with HyperianLang!
+// ═══════════════════════════════════════════════════════════════

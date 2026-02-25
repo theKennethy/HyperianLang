@@ -1,0 +1,246 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "HyperianLang",
+  "scopeName": "source.hyperianlang",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#function-def" },
+    { "include": "#function-call" },
+    { "include": "#event-block" },
+    { "include": "#control-flow" },
+    { "include": "#declarations" },
+    { "include": "#actions" },
+    { "include": "#operators" },
+    { "include": "#numbers" },
+    { "include": "#constants" },
+    { "include": "#prepositions" },
+    { "include": "#articles" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.hyperianlang",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.hyperianlang",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "captures": {
+            "0": { "name": "punctuation.definition.comment.hyperianlang" }
+          }
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.hyperianlang",
+          "begin": "\"",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.hyperianlang" }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.hyperianlang" }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.hyperianlang",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.hyperianlang",
+          "begin": "'",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.hyperianlang" }
+          },
+          "end": "'",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.hyperianlang" }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.hyperianlang",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "function-def": {
+      "patterns": [
+        {
+          "name": "meta.function.hyperianlang",
+          "match": "\\b(define)\\s+(function)\\s+(\"[^\"]+\")",
+          "captures": {
+            "1": { "name": "storage.type.function.hyperianlang" },
+            "2": { "name": "storage.type.function.hyperianlang" },
+            "3": { "name": "entity.name.function.hyperianlang" }
+          }
+        }
+      ]
+    },
+    "function-call": {
+      "patterns": [
+        {
+          "name": "meta.function-call.hyperianlang",
+          "match": "\\b(call)\\s+(function)\\s+(\"[^\"]+\")",
+          "captures": {
+            "1": { "name": "keyword.control.hyperianlang" },
+            "2": { "name": "storage.type.function.hyperianlang" },
+            "3": { "name": "entity.name.function.hyperianlang" }
+          }
+        }
+      ]
+    },
+    "event-block": {
+      "patterns": [
+        {
+          "name": "meta.event.hyperianlang",
+          "match": "\\b(when)\\s+(.+?)\\s+(then)\\b",
+          "captures": {
+            "1": { "name": "keyword.control.event.hyperianlang" },
+            "2": { "name": "variable.other.event.hyperianlang" },
+            "3": { "name": "keyword.control.hyperianlang" }
+          }
+        }
+      ]
+    },
+    "control-flow": {
+      "patterns": [
+        {
+          "name": "keyword.control.hyperianlang",
+          "match": "\\b(if|else|then|end|repeat|while|do|for|try|catch|break|skip|return|match|on)\\b"
+        },
+        {
+          "name": "keyword.control.flow.hyperianlang",
+          "match": "\\b(when|where)\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "meta.declaration.hyperianlang",
+          "match": "\\b(let)\\b",
+          "captures": {
+            "1": { "name": "storage.type.hyperianlang" }
+          }
+        },
+        {
+          "name": "storage.modifier.hyperianlang",
+          "match": "\\b(define|function)\\b"
+        }
+      ]
+    },
+    "actions": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.hyperianlang",
+          "match": "\\b(set|increase|decrease|print|call)\\b"
+        },
+        {
+          "name": "support.function.game.hyperianlang",
+          "match": "\\b(move|play|stop|spawn|destroy|show|hide|wait|emit|teleport|freeze|unfreeze|apply|say|choice|battle|attack|add|remove|toggle|load|win|lose|restart|save|give|take|turn|open|shake|flash|tint|equip|heal|grant|recover|change|learn|forget|delete|deal|restore|drain)\\b"
+        },
+        {
+          "name": "support.function.data.hyperianlang",
+          "match": "\\b(append|fetch|post|parse|stringify|read|write|split|replace|convert|count|round|floor|ceil|abs|sqrt|min|max|random|join|trim|uppercase|lowercase|sort|reverse|filter|merge|flatten|get|index|slice|find|clamp|log|exit|run|create|pad|sign|type)\\b"
+        },
+        {
+          "name": "support.function.array.hyperianlang",
+          "match": "\\b(transform|reduce|every|any|copy|assign)\\b"
+        },
+        {
+          "name": "support.function.path.hyperianlang",
+          "match": "\\b(basename|dirname|extname|path)\\b"
+        },
+        {
+          "name": "support.function.server.hyperianlang",
+          "match": "\\b(serve|respond|listen)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.comparison.hyperianlang",
+          "match": "\\b(equals|greater|less|than|not|is)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.hyperianlang",
+          "match": "\\b(and|or)\\b"
+        },
+        {
+          "name": "keyword.operator.arithmetic.word.hyperianlang",
+          "match": "\\b(plus|minus|times|multiplied|divided)\\b"
+        },
+        {
+          "name": "keyword.operator.arithmetic.hyperianlang",
+          "match": "(\\+|\\-|\\*|\\/|%)"
+        },
+        {
+          "name": "keyword.operator.comparison.symbol.hyperianlang",
+          "match": "(<=|>=|==|!=|<|>)"
+        },
+        {
+          "name": "keyword.operator.assignment.hyperianlang",
+          "match": "="
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.hyperianlang",
+          "match": "\\b-?\\d+\\.\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.hyperianlang",
+          "match": "\\b-?\\d+\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.hyperianlang",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.null.hyperianlang",
+          "match": "\\b(null|undefined)\\b"
+        },
+        {
+          "name": "support.constant.math.hyperianlang",
+          "match": "\\b(math)\\s+(pi|e)\\b"
+        }
+      ]
+    },
+    "prepositions": {
+      "patterns": [
+        {
+          "name": "keyword.other.preposition.hyperianlang",
+          "match": "\\b(to|by|at|from|with|of|in|into|starting|be)\\b"
+        },
+        {
+          "name": "keyword.other.unit.hyperianlang",
+          "match": "\\b(times|seconds|frames|fps)\\b"
+        }
+      ]
+    },
+    "articles": {
+      "patterns": [
+        {
+          "name": "punctuation.definition.article.hyperianlang",
+          "match": "\\b(the|a|an)\\b"
+        }
+      ]
+    }
+  }
+}
