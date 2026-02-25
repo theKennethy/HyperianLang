@@ -24,6 +24,35 @@ end
 - **VS Code Extension** — Syntax highlighting, snippets, and code intelligence
 - **Full JS Interop** — Use alongside existing JavaScript code
 
+## Requirements
+
+- **Node.js** — Version 18.0.0 or higher (tested up to v24.x)
+- **npm** — Comes with Node.js (no packages to install)
+
+### Check Your Version
+
+```bash
+node --version   # Should be v18.0.0 or higher
+```
+
+### Installing Node.js
+
+**macOS/Linux (using nvm):**
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+nvm install 20
+nvm use 20
+```
+
+**Windows:**
+Download from [nodejs.org](https://nodejs.org/) (LTS version recommended)
+
+**Ubuntu/Debian:**
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
 ## Installation
 
 ```bash
