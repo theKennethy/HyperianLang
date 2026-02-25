@@ -5658,7 +5658,7 @@ class HLParser {
       this._next();
       let src = null;
       if (this._is('from') || this._is('source')) { this._next(); src = this._parseValue(); }
-      else { src = this._parseValue(); }
+      else if (!this._is('with') && !this._is('into') && !this._is('called')) { src = this._parseValue(); }
       const attrs = this._parseHtmlAttrs();
       let out = null;
       if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
