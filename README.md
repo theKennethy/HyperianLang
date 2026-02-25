@@ -20,6 +20,7 @@ end
 - **Natural English Syntax** — Write `let the item count be 0` instead of `let itemCount = 0`
 - **Multi-word Variables** — Use descriptive names like `the response data` or `the current index`
 - **English Math** — Write `10 plus 5`, `20 divided by 4`, `3 times 4`
+- **Whitespace Independent** — Indentation doesn't matter; structure code however you like
 - **Zero Dependencies** — Pure JavaScript, works in Node.js and browsers
 - **VS Code Extension** — Syntax highlighting, snippets, and code intelligence
 - **Full JS Interop** — Use alongside existing JavaScript code
@@ -157,6 +158,112 @@ end
 call function "calculate total" with 29.99 and 3 into the result
 print the result  // 89.97
 ```
+
+### Classes and OOP
+
+HyperianLang supports object-oriented programming with English-like syntax. **Whitespace and indentation don't matter** — structure your code however you like.
+
+#### Defining a Class
+
+```hyperianlang
+define class "Animal" with name and age
+  define constructor with name and age
+    set this name to name
+    set this age to age
+  end
+  
+  define method "speak" with no arguments
+    print "Some animal sound"
+  end
+  
+  define method "greet" with message
+    print message
+    print this name
+  end
+end
+```
+
+#### Inheritance
+
+```hyperianlang
+define class "Dog" extends "Animal"
+  define method "speak" with no arguments
+    print "Woof! Woof!"
+  end
+  
+  define method "fetch" with item
+    print "Fetching: "
+    print item
+  end
+end
+```
+
+#### Creating Instances
+
+```hyperianlang
+# Create a new Animal
+new "Animal" with "Tiger" and 5 into myPet
+
+# Create a new Dog  
+new "Dog" with "Rex" and 3 into myDog
+```
+
+#### Calling Methods
+
+```hyperianlang
+# Call a method with no arguments
+call method "speak" on myDog
+
+# Call a method with arguments
+call method "greet" on myDog with "Hello, I am"
+```
+
+#### Complete Example
+
+```hyperianlang
+define class "Person" with name and email
+  define constructor with name and email
+    set this name to name
+    set this email to email
+  end
+  
+  define method "introduce" with no arguments
+    print "Hi, I'm "
+    print this name
+  end
+end
+
+define class "Employee" extends "Person" with salary
+  define method "work" with no arguments
+    print this name
+    print " is working..."
+  end
+  
+  define method "getRaise" with amount
+    increase this salary by amount
+  end
+end
+
+new "Person" with "Alice" and "alice@email.com" into alice
+new "Employee" with "Bob" and "bob@work.com" and 50000 into bob
+
+call method "introduce" on alice
+call method "work" on bob
+call method "getRaise" on bob with 5000
+```
+
+#### OOP Syntax Summary
+
+| Concept | Syntax |
+|---------|--------|
+| Define class | `define class "Name" with prop1 and prop2` |
+| Constructor | `define constructor with args` |
+| Method | `define method "name" with args` |
+| No args | `with no arguments` |
+| Inheritance | `define class "Child" extends "Parent"` |
+| Create instance | `new "ClassName" with args into variable` |
+| Access this | `this propertyName` or `set this prop to value` |
+| Call method | `call method "name" on object with args` |
 
 ### Arrays
 

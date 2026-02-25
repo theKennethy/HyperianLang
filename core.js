@@ -8,9 +8,15 @@ const _ES_KEYWORDS = new Set([
   'when', 'then', 'end', 'if', 'else', 'repeat', 'times', 'every',
   'seconds', 'while', 'do', 'and', 'or', 'not',
   // JS/Node.js control flow
-  'for', 'try', 'catch', 'break', 'skip', 'where',
+  'for', 'try', 'catch', 'break', 'skip', 'where', 'finally',
   // functions
   'function', 'return',
+  // OOP/classes
+  'class', 'extends', 'method', 'constructor', 'property', 'static', 'private', 'public',
+  // modules
+  'import', 'export', 'from', 'as',
+  // async
+  'await', 'async',
 ]);
 
 const _ES_ACTIONS = new Set([
@@ -36,6 +42,20 @@ const _ES_ACTIONS = new Set([
   'match', 'respond', 'listen', 'every', 'any',
   // server - English syntax
   'start', 'send', 'when',
+  // OOP
+  'new', 'inherit', 'extends', 'super',
+  // regex
+  'regex', 'pattern', 'test', 'matches', 'capture', 'extract',
+  // error handling
+  'throw', 'raise', 'error',
+  // websockets
+  'connect', 'disconnect', 'broadcast',
+  // child process
+  'execute', 'spawn', 'shell',
+  // database
+  'query', 'insert', 'update', 'select', 'where',
+  // async
+  'await', 'async', 'promise', 'resolve', 'reject',
 ]);
 
 const _ES_PREPS = new Set([
@@ -79,6 +99,20 @@ const _ES_PREPS = new Set([
   'an', 'a', 'return',
   // English sentence helpers
   'be', 'the', 'this', 'that', 'these', 'those', 'which', 'who',
+  // OOP preps
+  'instance', 'new', 'method', 'methods', 'property', 'properties', 'inherits', 'parent', 'child',
+  // regex preps
+  'regex', 'pattern', 'flags', 'global', 'ignorecase', 'multiline', 'groups',
+  // websocket preps
+  'websocket', 'socket', 'channel', 'room',
+  // database preps
+  'database', 'table', 'column', 'row', 'rows', 'values', 'where', 'limit', 'offset', 'order',
+  // callback preps
+  'callback', 'handler', 'listener',
+  // stream preps
+  'stream', 'pipe', 'chunk', 'encoding',
+  // module preps
+  'module', 'export', 'exports', 'require',
 ]);
 
 const _ES_COMPARISONS = new Set([
@@ -830,6 +864,34 @@ class HLParser {
         if (this._peek(1)?.value === 'battle') { this._next(); this._next(); return { type: 'endBattle' }; }
         if (this._peek(1)?.value === 'game')   { this._next(); this._next(); return { type: 'endGame' }; }
         return null;
+      // ═══════════════════════════════════════════════════════════════════════
+      // NEW FEATURES: Classes, Modules, Async, Regex, WebSockets, Database
+      // ═══════════════════════════════════════════════════════════════════════
+      // Classes/OOP
+      case 'class':     return this._parseClass();
+      case 'new':       return this._parseNewInstance();
+      // Modules
+      case 'import':    return this._parseImport();
+      case 'export':    return this._parseExport();
+      // Error handling
+      case 'throw':     return this._parseThrow();
+      case 'raise':     return this._parseThrow();
+      // Regex
+      case 'regex':     return this._parseRegex();
+      case 'test':      return this._parseRegexTest();
+      case 'extract':   return this._parseRegexExtract();
+      // Child processes
+      case 'execute':   return this._parseExecuteCommand();
+      case 'shell':     return this._parseShellCommand();
+      // WebSockets
+      case 'connect':   return this._parseConnectWebSocket();
+      case 'broadcast': return this._parseBroadcast();
+      // Database
+      case 'query':     return this._parseQuery();
+      case 'insert':    return this._parseInsert();
+      case 'select':    return this._parseSelect();
+      // Async/await
+      case 'await':     return this._parseAwait();
       default: this._next(); return null;
     }
   }
@@ -1139,7 +1201,86 @@ class HLParser {
     this._consume('define');
     const kind = this._consumeIdent();
 
-    if (['enemy','item','skill','class','actor','event','zone','status','map'].includes(kind)) {
+    // ── OOP class definition ──
+    // define class "ClassName" with prop1 and prop2 ... end
+    // define class "Child" extends "Parent" ... end
+    if (kind === 'class') {
+      const className = this._consumeIdentOrString();
+      let parentClass = null;
+      
+      // extends "ParentClass"
+      if (this._is('extends') || this._is('inherits')) {
+        this._next();
+        parentClass = this._consumeIdentOrString();
+      }
+      
+      // Parse properties (with prop1 and prop2...)
+      const properties = [];
+      if (this._is('with')) {
+        this._next();
+        while (this._peek() && !this._is('then') && !this._is('do') && !this._is('end') && !this._is('define')) {
+          if (this._is('and') || this._is(',')) { this._next(); continue; }
+          if (this._peek()?.value === 'define' || this._peek()?.value === 'method') break;
+          properties.push(this._consumeMultiWordName(new Set(['and', 'then', 'do', 'end', ',', 'define', 'method'])));
+        }
+      }
+      
+      if (this._is('then') || this._is('do')) this._next();
+      
+      // Parse methods
+      const methods = [];
+      while (this._peek() && !this._is('end')) {
+        if (this._is('define')) {
+          this._next();
+          if (this._is('method')) {
+            this._next();
+            const methodName = this._consumeIdentOrString();
+            const params = [];
+            if (this._is('with')) {
+              this._next();
+              if (!this._is('no')) {
+                while (this._peek() && !this._is('then') && !this._is('do') && !this._is('end')) {
+                  if (this._is('and') || this._is(',')) { this._next(); continue; }
+                  if (this._is('arguments') || this._is('params')) { this._next(); continue; }
+                  params.push(this._consumeMultiWordName(new Set(['and', 'then', 'do', 'end', ','])));
+                }
+              } else {
+                this._next(); // skip 'no'
+                if (this._is('arguments') || this._is('params')) this._next();
+              }
+            }
+            if (this._is('then') || this._is('do')) this._next();
+            const body = this._parseBody(['end']);
+            if (this._is('end')) this._consume('end');
+            methods.push({ name: methodName, params, body });
+          } else if (this._is('constructor')) {
+            this._next();
+            const params = [];
+            if (this._is('with')) {
+              this._next();
+              while (this._peek() && !this._is('then') && !this._is('do') && !this._is('end')) {
+                if (this._is('and') || this._is(',')) { this._next(); continue; }
+                params.push(this._consumeMultiWordName(new Set(['and', 'then', 'do', 'end', ','])));
+              }
+            }
+            if (this._is('then') || this._is('do')) this._next();
+            const body = this._parseBody(['end']);
+            if (this._is('end')) this._consume('end');
+            methods.push({ name: 'constructor', params, body, isConstructor: true });
+          } else {
+            // Unknown define inside class, skip
+            this._next();
+          }
+        } else {
+          this._next();
+        }
+      }
+      if (this._is('end')) this._consume('end');
+      
+      return { type: 'defineClass', className, parentClass, properties, methods };
+    }
+
+    if (['enemy','item','skill','actor','event','zone','status','map'].includes(kind)) {
       return this._parseDefineData(kind);
     }
 
@@ -2325,6 +2466,405 @@ class HLParser {
     }
     return null;
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEW FEATURES: Classes, Modules, Async, Regex, WebSockets, Database, Callbacks
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ─── Classes/OOP ──────────────────────────────────────────────────────────
+  // define class "Animal" with name and age
+  //   define method "speak" with no arguments
+  //     print "Hello!"
+  //   end
+  // end
+  // 
+  // define class "Dog" extends "Animal"
+  //   define method "speak" with no arguments
+  //     print "Woof!"
+  //   end
+  // end
+  _parseClass() {
+    this._consume('class');
+    const className = this._consumeIdentOrString();
+    let parentClass = null;
+    
+    // extends "ParentClass"
+    if (this._is('extends') || this._is('inherits')) {
+      this._next();
+      parentClass = this._consumeIdentOrString();
+    }
+    
+    // Parse properties (with prop1 and prop2...)
+    const properties = [];
+    if (this._is('with')) {
+      this._next();
+      while (this._peek() && !this._is('then') && !this._is('do') && !this._is('end')) {
+        if (this._is('and') || this._is(',')) { this._next(); continue; }
+        if (this._is('define') || this._is('method')) break;
+        properties.push(this._consumeMultiWordName(new Set(['and', 'then', 'do', 'end', ',', 'define', 'method'])));
+      }
+    }
+    
+    if (this._is('then') || this._is('do')) this._next();
+    
+    // Parse methods
+    const methods = [];
+    while (this._peek() && !this._is('end')) {
+      if (this._is('define')) {
+        this._next();
+        if (this._is('method')) {
+          this._next();
+          const methodName = this._consumeIdentOrString();
+          const params = [];
+          if (this._is('with')) {
+            this._next();
+            if (!this._is('no')) {
+              while (this._peek() && !this._is('then') && !this._is('do') && !this._is('end')) {
+                if (this._is('and') || this._is(',')) { this._next(); continue; }
+                if (this._is('arguments') || this._is('params')) { this._next(); continue; }
+                params.push(this._consumeMultiWordName(new Set(['and', 'then', 'do', 'end', ','])));
+              }
+            } else {
+              this._next(); // skip 'no'
+              if (this._is('arguments') || this._is('params')) this._next();
+            }
+          }
+          if (this._is('then') || this._is('do')) this._next();
+          const body = this._parseBody(['end']);
+          if (this._is('end')) this._consume('end');
+          methods.push({ name: methodName, params, body });
+        } else if (this._is('constructor')) {
+          this._next();
+          const params = [];
+          if (this._is('with')) {
+            this._next();
+            while (this._peek() && !this._is('then') && !this._is('do') && !this._is('end')) {
+              if (this._is('and') || this._is(',')) { this._next(); continue; }
+              params.push(this._consumeMultiWordName(new Set(['and', 'then', 'do', 'end', ','])));
+            }
+          }
+          if (this._is('then') || this._is('do')) this._next();
+          const body = this._parseBody(['end']);
+          if (this._is('end')) this._consume('end');
+          methods.push({ name: 'constructor', params, body, isConstructor: true });
+        }
+      } else {
+        this._next();
+      }
+    }
+    if (this._is('end')) this._consume('end');
+    
+    return { type: 'defineClass', className, parentClass, properties, methods };
+  }
+
+  // create new "Dog" with "Rex" and 3 into myDog
+  // let myDog be new "Dog" with "Rex" and 3
+  _parseNewInstance() {
+    this._consume('new');
+    const className = this._consumeIdentOrString();
+    const args = [];
+    
+    if (this._is('with')) {
+      this._next();
+      while (this._peek() && !this._is('into') && !this._is('then') && !this._is('end')) {
+        if (this._is('and') || this._is(',')) { this._next(); continue; }
+        args.push(this._parseValue());
+      }
+    }
+    
+    let variable = null;
+    if (this._is('into')) {
+      this._next();
+      variable = this._consumeMultiWordName(new Set(['then', 'end']));
+    }
+    
+    return { type: 'newInstance', className, args, variable };
+  }
+
+  // ─── Modules ──────────────────────────────────────────────────────────────
+  // import "utils.hl"
+  // import "math" as mathLib
+  // import add and subtract from "math.hl"
+  _parseImport() {
+    this._consume('import');
+    
+    // import X from "file"
+    if (this._peek()?.type === 'IDENT' || this._peek()?.type === 'ACTION') {
+      const imports = [];
+      while (this._peek() && !this._is('from') && !this._is('as')) {
+        if (this._is('and') || this._is(',')) { this._next(); continue; }
+        imports.push(this._consumeIdentOrString());
+      }
+      if (this._is('from')) {
+        this._next();
+        const file = this._consumeIdentOrString();
+        return { type: 'importFrom', imports, file };
+      }
+    }
+    
+    // import "file.hl" or import "file" as alias
+    const file = this._consumeIdentOrString();
+    let alias = null;
+    if (this._is('as')) {
+      this._next();
+      alias = this._consumeIdentOrString();
+    }
+    return { type: 'import', file, alias };
+  }
+
+  // export myFunction
+  // export the result
+  _parseExport() {
+    this._consume('export');
+    const name = this._consumeMultiWordName(new Set(['then', 'end']));
+    return { type: 'export', name };
+  }
+
+  // ─── Error Handling ───────────────────────────────────────────────────────
+  // throw "Error message"
+  // throw error "Something went wrong"
+  _parseThrow() {
+    if (this._is('throw')) this._consume('throw');
+    else this._consume('raise');
+    
+    if (this._is('error') || this._is('exception')) this._next();
+    const message = this._parseValue();
+    return { type: 'throw', message };
+  }
+
+  // ─── Regex ────────────────────────────────────────────────────────────────
+  // set pattern to regex "[0-9]+" with flags "gi"
+  // regex "[a-z]+" into myPattern
+  _parseRegex() {
+    this._consume('regex');
+    const pattern = this._consumeIdentOrString();
+    let flags = '';
+    if (this._is('with') || this._is('flags')) {
+      this._next();
+      if (this._is('flags')) this._next();
+      flags = this._consumeIdentOrString();
+    }
+    let variable = null;
+    if (this._is('into')) {
+      this._next();
+      variable = this._consumeMultiWordName(new Set(['then', 'end']));
+    }
+    return { type: 'regex', pattern, flags, variable };
+  }
+
+  // test "hello123" against pattern "[0-9]+" into result
+  // test text matches pattern into result
+  _parseRegexTest() {
+    this._consume('test');
+    const text = this._parseValue();
+    if (this._is('against') || this._is('matches') || this._is('with')) this._next();
+    if (this._is('pattern')) this._next();
+    const pattern = this._parseValue();
+    let flags = '';
+    if (this._is('with') || this._is('flags')) {
+      this._next();
+      if (this._is('flags')) this._next();
+      flags = this._consumeIdentOrString();
+    }
+    let variable = null;
+    if (this._is('into')) {
+      this._next();
+      variable = this._consumeMultiWordName(new Set(['then', 'end']));
+    }
+    return { type: 'regexTest', text, pattern, flags, variable };
+  }
+
+  // extract "[0-9]+" from "hello123" into matches
+  // extract pattern from text into results
+  _parseRegexExtract() {
+    this._consume('extract');
+    const pattern = this._parseValue();
+    if (this._is('from')) this._next();
+    const text = this._parseValue();
+    let flags = 'g';
+    if (this._is('with') || this._is('flags')) {
+      this._next();
+      if (this._is('flags')) this._next();
+      flags = this._consumeIdentOrString();
+    }
+    let variable = null;
+    if (this._is('into')) {
+      this._next();
+      variable = this._consumeMultiWordName(new Set(['then', 'end']));
+    }
+    return { type: 'regexExtract', pattern, text, flags, variable };
+  }
+
+  // ─── Child Processes ──────────────────────────────────────────────────────
+  // execute "ls -la" into result
+  // execute command "npm install" into output
+  _parseExecuteCommand() {
+    this._consume('execute');
+    if (this._is('command')) this._next();
+    const command = this._parseValue();
+    let variable = null;
+    if (this._is('into')) {
+      this._next();
+      variable = this._consumeMultiWordName(new Set(['then', 'end']));
+    }
+    return { type: 'executeCommand', command, variable };
+  }
+
+  // shell "echo hello" into result
+  _parseShellCommand() {
+    this._consume('shell');
+    const command = this._parseValue();
+    let variable = null;
+    if (this._is('into')) {
+      this._next();
+      variable = this._consumeMultiWordName(new Set(['then', 'end']));
+    }
+    return { type: 'shellCommand', command, variable };
+  }
+
+  // ─── WebSockets ───────────────────────────────────────────────────────────
+  // connect to websocket "ws://localhost:8080" into mySocket
+  // connect websocket "ws://localhost:8080" as mySocket
+  _parseConnectWebSocket() {
+    this._consume('connect');
+    if (this._is('to')) this._next();
+    if (this._is('websocket') || this._is('socket')) this._next();
+    const url = this._parseValue();
+    let variable = null;
+    if (this._is('into') || this._is('as')) {
+      this._next();
+      variable = this._consumeMultiWordName(new Set(['then', 'end']));
+    }
+    return { type: 'connectWebSocket', url, variable };
+  }
+
+  // broadcast "message" to all clients
+  // broadcast data to room "lobby"
+  _parseBroadcast() {
+    this._consume('broadcast');
+    const message = this._parseValue();
+    let target = 'all';
+    if (this._is('to')) {
+      this._next();
+      if (this._is('all')) { this._next(); if (this._is('clients')) this._next(); }
+      else if (this._is('room') || this._is('channel')) {
+        this._next();
+        target = { type: 'room', name: this._consumeIdentOrString() };
+      } else {
+        target = this._consumeIdentOrString();
+      }
+    }
+    return { type: 'broadcast', message, target };
+  }
+
+  // ─── Database ─────────────────────────────────────────────────────────────
+  // query "SELECT * FROM users" into results
+  // query database with "SELECT * FROM users" into results
+  _parseQuery() {
+    this._consume('query');
+    if (this._is('database') || this._is('db')) this._next();
+    if (this._is('with')) this._next();
+    const sql = this._parseValue();
+    let params = [];
+    if (this._is('with') || this._is('params') || this._is('parameters')) {
+      this._next();
+      if (this._is('params') || this._is('parameters')) this._next();
+      // Parse array of params
+      if (this._isType('LBRACKET') || this._peek()?.value === '[') {
+        const p = this._parseValue();
+        params = p;
+      }
+    }
+    let variable = null;
+    if (this._is('into')) {
+      this._next();
+      variable = this._consumeMultiWordName(new Set(['then', 'end']));
+    }
+    return { type: 'dbQuery', sql, params, variable };
+  }
+
+  // insert into "users" with { name: "John", age: 30 }
+  // insert { name: "John" } into table "users"
+  _parseInsert() {
+    this._consume('insert');
+    let table, data;
+    if (this._is('into')) {
+      this._next();
+      if (this._is('table')) this._next();
+      table = this._consumeIdentOrString();
+      if (this._is('with') || this._is('values') || this._is('data')) {
+        this._next();
+        data = this._parseValue();
+      }
+    } else {
+      data = this._parseValue();
+      if (this._is('into')) {
+        this._next();
+        if (this._is('table')) this._next();
+        table = this._consumeIdentOrString();
+      }
+    }
+    return { type: 'dbInsert', table, data };
+  }
+
+  // select from "users" where "age > 18" into results
+  // select * from table "users" into results
+  _parseSelect() {
+    this._consume('select');
+    let columns = '*';
+    if (!this._is('from') && !this._is('*')) {
+      const cols = [];
+      while (this._peek() && !this._is('from')) {
+        if (this._is('and') || this._is(',')) { this._next(); continue; }
+        cols.push(this._consumeIdentOrString());
+      }
+      columns = cols;
+    } else if (this._is('*')) {
+      this._next();
+    }
+    if (this._is('from')) this._next();
+    if (this._is('table')) this._next();
+    const table = this._consumeIdentOrString();
+    let where = null;
+    if (this._is('where')) {
+      this._next();
+      where = this._parseValue();
+    }
+    let limit = null, offset = null;
+    if (this._is('limit')) { this._next(); limit = this._parseValue(); }
+    if (this._is('offset')) { this._next(); offset = this._parseValue(); }
+    let variable = null;
+    if (this._is('into')) {
+      this._next();
+      variable = this._consumeMultiWordName(new Set(['then', 'end']));
+    }
+    return { type: 'dbSelect', columns, table, where, limit, offset, variable };
+  }
+
+  // ─── Async/Await ──────────────────────────────────────────────────────────
+  // await fetch "url" into result
+  // await promise into result
+  _parseAwait() {
+    this._consume('await');
+    // The next part could be a fetch, promise variable, or function call
+    if (this._is('fetch')) {
+      const fetchStmt = this._parseFetch();
+      fetchStmt.isAsync = true;
+      return { type: 'await', expr: fetchStmt };
+    }
+    if (this._is('call')) {
+      const callStmt = this._parseCall();
+      return { type: 'await', expr: callStmt };
+    }
+    // await somePromise into result
+    const promise = this._parseValue();
+    let variable = null;
+    if (this._is('into')) {
+      this._next();
+      variable = this._consumeMultiWordName(new Set(['then', 'end']));
+    }
+    return { type: 'await', expr: promise, variable };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3491,6 +4031,413 @@ class HLInterpreter {
           }
           this._currentResponse = null;
         }
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // NEW FEATURES: Classes, Modules, Async, Regex, WebSockets, Database
+      // ═══════════════════════════════════════════════════════════════════════
+
+      // ── Classes/OOP ───────────────────────────────────────────────────────
+      case 'defineClass': {
+        if (!this._classes) this._classes = new Map();
+        this._classes.set(stmt.className, {
+          parentClass: stmt.parentClass,
+          properties: stmt.properties || [],
+          methods: stmt.methods || []
+        });
+        break;
+      }
+
+      case 'newInstance': {
+        if (!w) break;
+        const classDef = this._classes?.get(stmt.className);
+        if (!classDef) { console.warn(`Class "${stmt.className}" not defined`); break; }
+        
+        // Create instance object
+        const instance = { __class__: stmt.className };
+        
+        // Set properties from args
+        const args = (stmt.args || []).map(a => this._resolveValue(a));
+        (classDef.properties || []).forEach((prop, i) => {
+          instance[prop] = args[i] ?? null;
+        });
+        
+        // Call constructor if exists
+        const constructor = classDef.methods.find(m => m.isConstructor);
+        if (constructor) {
+          const savedVars = w ? { ...w._vars } : {};
+          if (w) {
+            w._vars['this'] = instance;
+            (constructor.params || []).forEach((p, i) => { w._vars[p] = args[i]; });
+          }
+          try { await this._executeBody(constructor.body); }
+          catch (e) { if (!e.__hlReturn) throw e; }
+          if (w) w._vars = savedVars;
+        }
+        
+        // Bind methods to instance
+        for (const method of classDef.methods) {
+          if (!method.isConstructor) {
+            instance[method.name] = async (...callArgs) => {
+              const savedVars = w ? { ...w._vars } : {};
+              if (w) {
+                w._vars['this'] = instance;
+                (method.params || []).forEach((p, i) => { w._vars[p] = callArgs[i]; });
+              }
+              let retVal = null;
+              try { await this._executeBody(method.body); }
+              catch (e) { if (e?.__hlReturn) retVal = e.value; else throw e; }
+              if (w) w._vars = savedVars;
+              return retVal;
+            };
+          }
+        }
+        
+        if (stmt.variable && w) w._vars[stmt.variable] = instance;
+        break;
+      }
+
+      // ── Modules ───────────────────────────────────────────────────────────
+      case 'import': {
+        if (typeof require === 'undefined') break;
+        const fs = require('fs');
+        const path = require('path');
+        let filePath = this._resolveValue(stmt.file);
+        
+        // Add .hl extension if not present
+        if (!filePath.endsWith('.hl') && !filePath.endsWith('.es')) {
+          filePath += '.hl';
+        }
+        
+        // Resolve relative to current file or cwd
+        const resolvedPath = path.resolve(filePath);
+        
+        if (fs.existsSync(resolvedPath)) {
+          const source = fs.readFileSync(resolvedPath, 'utf8');
+          const tokens = new HLLexer(source).tokenize();
+          const ast = new HLParser(tokens).parse();
+          
+          // Execute the imported module
+          const savedVars = w ? { ...w._vars } : {};
+          await this._executeBody(ast.init);
+          
+          // If alias provided, wrap exports in a namespace
+          if (stmt.alias && w) {
+            const exported = {};
+            // Copy functions defined in the module
+            for (const [name, fn] of this._functions) {
+              exported[name] = fn;
+            }
+            w._vars[stmt.alias] = exported;
+          }
+        } else {
+          console.warn(`[HyperianLang] Module not found: ${resolvedPath}`);
+        }
+        break;
+      }
+
+      case 'importFrom': {
+        if (typeof require === 'undefined') break;
+        const fs = require('fs');
+        const path = require('path');
+        let filePath = this._resolveValue(stmt.file);
+        if (!filePath.endsWith('.hl') && !filePath.endsWith('.es')) filePath += '.hl';
+        const resolvedPath = path.resolve(filePath);
+        
+        if (fs.existsSync(resolvedPath)) {
+          const source = fs.readFileSync(resolvedPath, 'utf8');
+          const tokens = new HLLexer(source).tokenize();
+          const ast = new HLParser(tokens).parse();
+          await this._executeBody(ast.init);
+          
+          // Import specific functions by name
+          for (const name of stmt.imports) {
+            const fn = this._functions.get(name);
+            if (fn && w) w._vars[name] = fn;
+          }
+        }
+        break;
+      }
+
+      case 'export': {
+        // Exports are implicit - functions/vars are already accessible
+        break;
+      }
+
+      // ── Error Handling ────────────────────────────────────────────────────
+      case 'throw': {
+        const msg = this._resolveValue(stmt.message);
+        const err = new Error(msg);
+        err.__hlThrow = true;
+        throw err;
+        break;
+      }
+
+      case 'tryCatch': {
+        try {
+          await this._executeBody(stmt.tryBody);
+        } catch (e) {
+          if (e === _HL_BREAK || e === _HL_SKIP || e?.__hlReturn) throw e;
+          // Set error variable
+          if (stmt.errorVar && w) {
+            w._vars[stmt.errorVar] = e?.message || String(e);
+          }
+          await this._executeBody(stmt.catchBody);
+        } finally {
+          if (stmt.finallyBody) {
+            await this._executeBody(stmt.finallyBody);
+          }
+        }
+        break;
+      }
+
+      // ── Regex ─────────────────────────────────────────────────────────────
+      case 'regex': {
+        if (!w) break;
+        const pattern = this._resolveValue(stmt.pattern);
+        const flags = stmt.flags || '';
+        try {
+          const regex = new RegExp(pattern, flags);
+          if (stmt.variable) w._vars[stmt.variable] = regex;
+        } catch (e) {
+          console.warn(`[HyperianLang] Invalid regex: ${pattern}`);
+          if (stmt.variable) w._vars[stmt.variable] = null;
+        }
+        break;
+      }
+
+      case 'regexTest': {
+        if (!w) break;
+        const text = String(this._resolveValue(stmt.text));
+        let pattern = this._resolveValue(stmt.pattern);
+        const flags = stmt.flags || '';
+        
+        try {
+          if (typeof pattern === 'string') pattern = new RegExp(pattern, flags);
+          const result = pattern.test(text);
+          if (stmt.variable) w._vars[stmt.variable] = result;
+        } catch (e) {
+          if (stmt.variable) w._vars[stmt.variable] = false;
+        }
+        break;
+      }
+
+      case 'regexExtract': {
+        if (!w) break;
+        const text = String(this._resolveValue(stmt.text));
+        let pattern = this._resolveValue(stmt.pattern);
+        const flags = stmt.flags || 'g';
+        
+        try {
+          if (typeof pattern === 'string') pattern = new RegExp(pattern, flags);
+          const matches = text.match(pattern) || [];
+          if (stmt.variable) w._vars[stmt.variable] = matches;
+        } catch (e) {
+          if (stmt.variable) w._vars[stmt.variable] = [];
+        }
+        break;
+      }
+
+      // ── Child Processes ───────────────────────────────────────────────────
+      case 'executeCommand':
+      case 'shellCommand': {
+        if (!w || typeof require === 'undefined') break;
+        const cmd = String(this._resolveValue(stmt.command));
+        const { execSync } = require('child_process');
+        try {
+          const output = execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+          if (stmt.variable) w._vars[stmt.variable] = output.trim();
+        } catch (e) {
+          if (stmt.variable) w._vars[stmt.variable] = { error: e.message, code: e.status };
+        }
+        break;
+      }
+
+      // ── WebSockets ────────────────────────────────────────────────────────
+      case 'connectWebSocket': {
+        if (!w) break;
+        const url = String(this._resolveValue(stmt.url));
+        
+        let WebSocket;
+        if (typeof require !== 'undefined') {
+          try { WebSocket = require('ws'); } 
+          catch (e) { console.warn('[HyperianLang] ws module not found. Install with: npm install ws'); break; }
+        } else if (typeof window !== 'undefined' && window.WebSocket) {
+          WebSocket = window.WebSocket;
+        } else {
+          console.warn('[HyperianLang] WebSocket not available'); break;
+        }
+        
+        const socket = new WebSocket(url);
+        socket._hlMessageHandlers = [];
+        
+        socket.on?.('message', (data) => {
+          for (const handler of socket._hlMessageHandlers) handler(data);
+        });
+        
+        if (stmt.variable) w._vars[stmt.variable] = socket;
+        break;
+      }
+
+      case 'broadcast': {
+        if (!w) break;
+        const message = this._resolveValue(stmt.message);
+        // Broadcast to all connected WebSocket clients (server-side)
+        if (this._wsClients) {
+          for (const client of this._wsClients) {
+            if (client.readyState === 1) { // OPEN
+              client.send(typeof message === 'string' ? message : JSON.stringify(message));
+            }
+          }
+        }
+        break;
+      }
+
+      // ── Database ──────────────────────────────────────────────────────────
+      case 'dbQuery': {
+        if (!w || typeof require === 'undefined') break;
+        const sql = String(this._resolveValue(stmt.sql));
+        const params = Array.isArray(stmt.params) ? stmt.params.map(p => this._resolveValue(p)) : [];
+        
+        // Use better-sqlite3 for synchronous SQLite
+        let Database;
+        try { Database = require('better-sqlite3'); }
+        catch (e) { 
+          console.warn('[HyperianLang] better-sqlite3 not found. Install with: npm install better-sqlite3');
+          if (stmt.variable) w._vars[stmt.variable] = [];
+          break;
+        }
+        
+        try {
+          if (!this._db) this._db = new Database('hyperianlang.db');
+          const result = sql.trim().toLowerCase().startsWith('select')
+            ? this._db.prepare(sql).all(...params)
+            : this._db.prepare(sql).run(...params);
+          if (stmt.variable) w._vars[stmt.variable] = result;
+        } catch (e) {
+          console.warn(`[HyperianLang] Database error: ${e.message}`);
+          if (stmt.variable) w._vars[stmt.variable] = { error: e.message };
+        }
+        break;
+      }
+
+      case 'dbInsert': {
+        if (!w || typeof require === 'undefined') break;
+        const table = String(this._resolveValue(stmt.table));
+        const data = this._resolveValue(stmt.data);
+        
+        if (typeof data !== 'object' || data === null) break;
+        
+        const columns = Object.keys(data);
+        const values = Object.values(data);
+        const placeholders = columns.map(() => '?').join(', ');
+        const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
+        
+        let Database;
+        try { Database = require('better-sqlite3'); }
+        catch (e) { break; }
+        
+        try {
+          if (!this._db) this._db = new Database('hyperianlang.db');
+          this._db.prepare(sql).run(...values);
+        } catch (e) {
+          console.warn(`[HyperianLang] Insert error: ${e.message}`);
+        }
+        break;
+      }
+
+      case 'dbSelect': {
+        if (!w || typeof require === 'undefined') break;
+        const table = String(this._resolveValue(stmt.table));
+        const cols = Array.isArray(stmt.columns) ? stmt.columns.join(', ') : '*';
+        let sql = `SELECT ${cols} FROM ${table}`;
+        
+        const params = [];
+        if (stmt.where) {
+          const where = this._resolveValue(stmt.where);
+          sql += ` WHERE ${where}`;
+        }
+        if (stmt.limit) sql += ` LIMIT ${this._resolveValue(stmt.limit)}`;
+        if (stmt.offset) sql += ` OFFSET ${this._resolveValue(stmt.offset)}`;
+        
+        let Database;
+        try { Database = require('better-sqlite3'); }
+        catch (e) { if (stmt.variable) w._vars[stmt.variable] = []; break; }
+        
+        try {
+          if (!this._db) this._db = new Database('hyperianlang.db');
+          const result = this._db.prepare(sql).all(...params);
+          if (stmt.variable) w._vars[stmt.variable] = result;
+        } catch (e) {
+          console.warn(`[HyperianLang] Select error: ${e.message}`);
+          if (stmt.variable) w._vars[stmt.variable] = [];
+        }
+        break;
+      }
+
+      // ── Async/Await ───────────────────────────────────────────────────────
+      case 'await': {
+        const expr = stmt.expr;
+        let result;
+        
+        if (expr?.type === 'fetchUrl') {
+          // Handle fetch
+          const url = String(this._resolveValue(expr.url));
+          const method = expr.method || 'GET';
+          const body = expr.body ? this._resolveValue(expr.body) : null;
+          
+          try {
+            if (typeof fetch !== 'undefined') {
+              const opts = { method };
+              if (body) {
+                opts.body = JSON.stringify(body);
+                opts.headers = { 'Content-Type': 'application/json' };
+              }
+              const res = await fetch(url, opts);
+              result = await res.json();
+            } else if (typeof require !== 'undefined') {
+              // Node.js: use built-in fetch or http
+              const https = require('https');
+              const http = require('http');
+              const urlModule = require('url');
+              const parsed = urlModule.parse(url);
+              const mod = parsed.protocol === 'https:' ? https : http;
+              
+              result = await new Promise((resolve, reject) => {
+                const req = mod.request(url, { method }, (res) => {
+                  let data = '';
+                  res.on('data', chunk => data += chunk);
+                  res.on('end', () => {
+                    try { resolve(JSON.parse(data)); }
+                    catch (e) { resolve(data); }
+                  });
+                });
+                req.on('error', reject);
+                if (body) req.write(JSON.stringify(body));
+                req.end();
+              });
+            }
+          } catch (e) {
+            result = { error: e.message };
+          }
+          
+          if (expr.variable && w) w._vars[expr.variable] = result;
+        } else if (expr?.type === 'callFunction') {
+          // Handle async function call
+          await this._executeStatement(expr);
+          result = w?._vars[expr.out] ?? null;
+        } else {
+          // Await a promise variable
+          const promise = this._resolveValue(expr);
+          if (promise && typeof promise.then === 'function') {
+            result = await promise;
+          } else {
+            result = promise;
+          }
+        }
+        
+        if (stmt.variable && w) w._vars[stmt.variable] = result;
         break;
       }
     }
