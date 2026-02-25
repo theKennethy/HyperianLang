@@ -729,6 +729,78 @@ html input with type "text" and name "field" and placeholder "Enter..." and requ
 html button "Click" with class "btn" and id "submit" and style "color: blue"
 ```
 
+## Text Formatting
+
+```hyperianlang
+html bold "Important text"              // <strong>
+html strong "Also important"            // <strong>
+html italic "Emphasized text"           // <em>
+html emphasis "Also emphasized"         // <em>
+html code "const x = 42"                // <code>
+html preformatted "Multi\nline\ncode"   // <pre>
+html quote "Famous quote"               // <blockquote>
+html mark "highlighted"                 // <mark>
+html sub "subscript"                    // <sub> (e.g., H₂O)
+html sup "superscript"                  // <sup> (e.g., x²)
+html abbr "HTML" with title "HyperText Markup Language"  // <abbr>
+html time "Jan 1, 2024" with datetime "2024-01-01"       // <time>
+```
+
+## Line Breaks & Rules
+
+```hyperianlang
+html paragraph "Line 1"
+html break                              // <br>
+html paragraph "Line 2"
+html line                               // <hr>
+```
+
+## Media Elements
+
+```hyperianlang
+html video from "video.mp4" with controls and autoplay and loop
+html audio from "audio.mp3" with controls and muted
+html iframe from "https://example.com" with width 800 and height 600
+html canvas with id "myCanvas" and width 400 and height 300
+html svg with width 100 and height 100 "<circle cx='50' cy='50' r='40'/>"
+```
+
+## Details & Summary
+
+```hyperianlang
+html details with open
+  html summary "Click to expand"
+  html paragraph "Hidden content revealed!"
+end details
+```
+
+## Figure & Caption
+
+```hyperianlang
+html figure
+  html image from "photo.jpg" with alt "A photo"
+  html caption "Figure 1: A beautiful photo"
+end figure
+```
+
+## Progress & Meter
+
+```hyperianlang
+html progress with value 70 and max 100
+html meter with value 0.6 and min 0 and max 1 and low 0.3 and high 0.8
+```
+
+## Datalist (Autocomplete)
+
+```hyperianlang
+html input with type "text" and list "browsers"
+html datalist with id "browsers"
+  html option "Chrome"
+  html option "Firefox"
+  html option "Safari"
+end datalist
+```
+
 ---
 
 # Electron Desktop Apps

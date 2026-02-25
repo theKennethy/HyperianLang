@@ -48,6 +48,11 @@ const _ES_KEYWORDS = new Set([
   'heading', 'paragraph', 'link', 'image', 'button', 'input', 'form', 'label', 'textarea', 'select', 'option',
   'table', 'row', 'cell', 'thead', 'tbody', 'list', 'item', 'script', 'style', 'meta', 'title',
   'ordered', 'unordered', 'stylesheet', 'charset', 'viewport', 'template',
+  // Additional HTML elements
+  'break', 'line', 'bold', 'strong', 'italic', 'emphasis', 'code', 'preformatted', 'quote', 'blockquote',
+  'video', 'audio', 'iframe', 'canvas', 'svg', 'details', 'summary', 'figure', 'caption',
+  'progress', 'meter', 'datalist', 'abbr', 'mark', 'time', 'sub', 'sup', 'hr', 'br',
+  'controls', 'autoplay', 'loop', 'muted', 'poster', 'width', 'height', 'open', 'datetime',
 ]);
 
 const _ES_ACTIONS = new Set([
@@ -5757,6 +5762,246 @@ class HLParser {
       return { type: 'htmlContainer', tag, attrs, body, out };
     }
     
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ADDITIONAL HTML ELEMENTS
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    // html break / html br (line break)
+    if (tok.value === 'break' || tok.value === 'br') {
+      this._next();
+      return { type: 'htmlBreak' };
+    }
+    
+    // html line / html hr (horizontal rule)
+    if (tok.value === 'line' || tok.value === 'hr') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      return { type: 'htmlHr', attrs };
+    }
+    
+    // html bold "text" / html strong "text"
+    if (tok.value === 'bold' || tok.value === 'strong') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlStrong', text, attrs, out };
+    }
+    
+    // html italic "text" / html emphasis "text"
+    if (tok.value === 'italic' || tok.value === 'emphasis') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlEm', text, attrs, out };
+    }
+    
+    // html code "snippet"
+    if (tok.value === 'code') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlCode', text, attrs, out };
+    }
+    
+    // html preformatted "code block" / html pre "code"
+    if (tok.value === 'preformatted' || tok.value === 'pre') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlPre', text, attrs, out };
+    }
+    
+    // html quote "text" / html blockquote "text"
+    if (tok.value === 'quote' || tok.value === 'blockquote') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlBlockquote', text, attrs, out };
+    }
+    
+    // html video from "video.mp4" with controls and autoplay
+    if (tok.value === 'video') {
+      this._next();
+      let src = null;
+      if (this._is('from') || this._is('source')) { this._next(); src = this._parseValue(); }
+      else if (this._peek()?.type === 'STRING') { src = this._parseValue(); }
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlVideo', src, attrs, out };
+    }
+    
+    // html audio from "audio.mp3" with controls
+    if (tok.value === 'audio') {
+      this._next();
+      let src = null;
+      if (this._is('from') || this._is('source')) { this._next(); src = this._parseValue(); }
+      else if (this._peek()?.type === 'STRING') { src = this._parseValue(); }
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlAudio', src, attrs, out };
+    }
+    
+    // html iframe from "url" with width 800 and height 600
+    if (tok.value === 'iframe') {
+      this._next();
+      let src = null;
+      if (this._is('from') || this._is('source')) { this._next(); src = this._parseValue(); }
+      else if (this._peek()?.type === 'STRING') { src = this._parseValue(); }
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlIframe', src, attrs, out };
+    }
+    
+    // html canvas with id "canvas" and width 800 and height 600
+    if (tok.value === 'canvas') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlCanvas', attrs, out };
+    }
+    
+    // html svg with width 100 and height 100 ... end svg
+    if (tok.value === 'svg') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      let content = null;
+      if (this._peek()?.type === 'STRING') { content = this._parseValue(); }
+      return { type: 'htmlSvg', attrs, content, out };
+    }
+    
+    // html details with open ... end details
+    if (tok.value === 'details') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('details')) this._next(); }
+      return { type: 'htmlDetails', attrs, body, out };
+    }
+    
+    // html summary "text"
+    if (tok.value === 'summary') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      return { type: 'htmlSummary', text, attrs };
+    }
+    
+    // html figure ... end figure
+    if (tok.value === 'figure') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('figure')) this._next(); }
+      return { type: 'htmlFigure', attrs, body, out };
+    }
+    
+    // html caption "text"
+    if (tok.value === 'caption') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      return { type: 'htmlFigcaption', text, attrs };
+    }
+    
+    // html progress with value 50 and max 100
+    if (tok.value === 'progress') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlProgress', attrs, out };
+    }
+    
+    // html meter with value 0.6 and min 0 and max 1
+    if (tok.value === 'meter') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlMeter', attrs, out };
+    }
+    
+    // html datalist with id "options" ... end datalist
+    if (tok.value === 'datalist') {
+      this._next();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      const body = this._parseBody(['end']);
+      if (this._is('end')) { this._next(); if (this._is('datalist')) this._next(); }
+      return { type: 'htmlDatalist', attrs, body, out };
+    }
+    
+    // html abbr "HTML" with title "HyperText Markup Language"
+    if (tok.value === 'abbr') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlAbbr', text, attrs, out };
+    }
+    
+    // html mark "highlighted text"
+    if (tok.value === 'mark') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlMark', text, attrs, out };
+    }
+    
+    // html time "2024-01-01" with datetime "2024-01-01"
+    if (tok.value === 'time') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlTime', text, attrs, out };
+    }
+    
+    // html sub "subscript"
+    if (tok.value === 'sub') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlSub', text, attrs, out };
+    }
+    
+    // html sup "superscript"
+    if (tok.value === 'sup') {
+      this._next();
+      const text = this._parseValue();
+      const attrs = this._parseHtmlAttrs();
+      let out = null;
+      if (this._is('into') || this._is('called')) { this._next(); out = this._consumeIdent(); }
+      return { type: 'htmlSup', text, attrs, out };
+    }
+    
     throw new Error(`HLParser: Unknown HTML element "${tok.value}"`);
   }
   
@@ -5791,6 +6036,25 @@ class HLParser {
       if (this._is('selected')) { this._next(); attrs.selected = { type: 'boolean', value: true }; continue; }
       if (this._is('readonly')) { this._next(); attrs.readonly = { type: 'boolean', value: true }; continue; }
       if (this._is('autofocus')) { this._next(); attrs.autofocus = { type: 'boolean', value: true }; continue; }
+      // Media attributes
+      if (this._is('controls')) { this._next(); attrs.controls = { type: 'boolean', value: true }; continue; }
+      if (this._is('autoplay')) { this._next(); attrs.autoplay = { type: 'boolean', value: true }; continue; }
+      if (this._is('loop')) { this._next(); attrs.loop = { type: 'boolean', value: true }; continue; }
+      if (this._is('muted')) { this._next(); attrs.muted = { type: 'boolean', value: true }; continue; }
+      if (this._is('poster')) { this._next(); attrs.poster = this._parseValue(); continue; }
+      if (this._is('width')) { this._next(); attrs.width = this._parseValue(); continue; }
+      if (this._is('height')) { this._next(); attrs.height = this._parseValue(); continue; }
+      // Details/time attributes
+      if (this._is('open')) { this._next(); attrs.open = { type: 'boolean', value: true }; continue; }
+      if (this._is('datetime')) { this._next(); attrs.datetime = this._parseValue(); continue; }
+      // Progress/meter attributes
+      if (this._is('min')) { this._next(); attrs.min = this._parseValue(); continue; }
+      if (this._is('max')) { this._next(); attrs.max = this._parseValue(); continue; }
+      if (this._is('low')) { this._next(); attrs.low = this._parseValue(); continue; }
+      if (this._is('high')) { this._next(); attrs.high = this._parseValue(); continue; }
+      if (this._is('optimum')) { this._next(); attrs.optimum = this._parseValue(); continue; }
+      // Abbr attribute
+      if (this._is('title')) { this._next(); attrs.title = this._parseValue(); continue; }
       // Generic attribute: "attr value"
       const attrName = this._consumeIdent();
       const attrVal = this._parseValue();
@@ -9856,6 +10120,250 @@ class HLInterpreter {
           delete w._htmlContainerContent;
         }
         const html = content ? `<${tag}${this._renderAttrs(attrs)}>\n${content}\n</${tag}>` : `<${tag}${this._renderAttrs(attrs)}></${tag}>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════════════
+      // ADDITIONAL HTML ELEMENT HANDLERS
+      // ═══════════════════════════════════════════════════════════════════════════
+      
+      case 'htmlBreak': {
+        if (!w) break;
+        this._appendHtml(w, '<br>');
+        break;
+      }
+      
+      case 'htmlHr': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        this._appendHtml(w, `<hr${this._renderAttrs(attrs)}>`);
+        break;
+      }
+      
+      case 'htmlStrong': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<strong${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</strong>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlEm': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<em${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</em>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlCode': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<code${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</code>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlPre': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<pre${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</pre>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlBlockquote': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<blockquote${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</blockquote>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlVideo': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        if (stmt.src) attrs.src = this._resolveValue(stmt.src);
+        const html = `<video${this._renderAttrs(attrs)}></video>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlAudio': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        if (stmt.src) attrs.src = this._resolveValue(stmt.src);
+        const html = `<audio${this._renderAttrs(attrs)}></audio>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlIframe': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        if (stmt.src) attrs.src = this._resolveValue(stmt.src);
+        const html = `<iframe${this._renderAttrs(attrs)}></iframe>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlCanvas': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<canvas${this._renderAttrs(attrs)}></canvas>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlSvg': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const content = stmt.content ? this._resolveValue(stmt.content) : '';
+        const html = `<svg${this._renderAttrs(attrs)}>${content}</svg>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlDetails': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        delete w._htmlContainerContent;
+        const html = `<details${this._renderAttrs(attrs)}>\n${content}\n</details>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlSummary': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<summary${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</summary>`;
+        this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlFigure': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const savedContent = [];
+        w._htmlContainerContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        delete w._htmlContainerContent;
+        const html = `<figure${this._renderAttrs(attrs)}>\n${content}\n</figure>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlFigcaption': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<figcaption${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</figcaption>`;
+        this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlProgress': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<progress${this._renderAttrs(attrs)}></progress>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlMeter': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<meter${this._renderAttrs(attrs)}></meter>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlDatalist': {
+        if (!w) break;
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const savedContent = [];
+        w._htmlSelectContent = savedContent;
+        await this._executeBody(stmt.body);
+        const content = savedContent.join('\n');
+        delete w._htmlSelectContent;
+        const html = `<datalist${this._renderAttrs(attrs)}>\n${content}\n</datalist>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlAbbr': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<abbr${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</abbr>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlMark': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<mark${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</mark>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlTime': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<time${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</time>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlSub': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<sub${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</sub>`;
+        if (stmt.out) w._vars[stmt.out] = html;
+        else this._appendHtml(w, html);
+        break;
+      }
+      
+      case 'htmlSup': {
+        if (!w) break;
+        const text = this._resolveValue(stmt.text);
+        const attrs = this._resolveHtmlAttrs(stmt.attrs);
+        const html = `<sup${this._renderAttrs(attrs)}>${this._escapeHtml(text)}</sup>`;
         if (stmt.out) w._vars[stmt.out] = html;
         else this._appendHtml(w, html);
         break;
