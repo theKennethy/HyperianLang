@@ -8544,9 +8544,29 @@ class HLInterpreter {
                 // Execute route body with request variable
                 const w = this.world || { _vars: {} };
                 w._vars[route.reqVar] = reqObj;
+                w._responseSent = false;
+                // Clear HTML/CSS output for fresh request
+                delete w._vars['_htmlOutput'];
+                delete w._htmlOutput;
+                delete w._htmlContext;
+                delete w._cssOutput;
+                delete w._htmlStack;
                 
                 for (const s of route.body) {
                   await this._executeStatement(s, w);
+                }
+                
+                // Auto-send HTML output if response wasn't explicitly sent
+                if (!w._responseSent && !res.writableEnded) {
+                  const htmlOutput = w._vars['_htmlOutput'];
+                  if (htmlOutput) {
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                    res.end(htmlOutput);
+                  } else {
+                    // No response and no HTML - send empty
+                    res.writeHead(204);
+                    res.end();
+                  }
                 }
               });
             } else {
@@ -8610,6 +8630,8 @@ class HLInterpreter {
           this._currentResponse.writeHead(status, { 'Content-Type': contentType });
           this._currentResponse.end(body);
           this._currentResponse = null;
+          // Mark response as sent
+          if (w) w._responseSent = true;
         }
         break;
       }
@@ -10628,8 +10650,16 @@ class HLInterpreter {
         await this._executeBody(stmt.body);
         // Build final HTML
         let html = w._htmlContext.doctype + '\n<html>\n';
-        if (w._htmlContext.head.length) {
-          html += '<head>\n' + w._htmlContext.head.join('\n') + '\n</head>\n';
+        if (w._htmlContext.head.length || (w._cssOutput && w._cssOutput.length)) {
+          html += '<head>\n';
+          if (w._htmlContext.head.length) {
+            html += w._htmlContext.head.join('\n') + '\n';
+          }
+          // Add accumulated CSS as a style tag
+          if (w._cssOutput && w._cssOutput.length) {
+            html += '<style>\n' + w._cssOutput.join('\n\n') + '\n</style>\n';
+          }
+          html += '</head>\n';
         }
         html += '<body>\n' + w._htmlContext.body.join('\n') + '\n</body>\n</html>';
         if (stmt.out) w._vars[stmt.out] = html;
