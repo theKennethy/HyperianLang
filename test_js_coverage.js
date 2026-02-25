@@ -39,14 +39,14 @@ async function test(name, code, check) {
     ['set variable', 'let x be 1\nset x to 2', v => v.x === 2],
     
     // --- ARRAYS ---
-    ['array literal', 'let arr be [1, 2, 3]', v => JSON.stringify(v.arr) === '[1,2,3]'],
-    ['nested array', 'let arr be [[1, 2], [3, 4]]', v => v.arr && v.arr[0][0] === 1],
-    ['empty array', 'let arr be []', v => Array.isArray(v.arr) && v.arr.length === 0],
+    ['array literal', 'let array be [1, 2, 3]', v => JSON.stringify(v.array) === '[1,2,3]'],
+    ['nested array', 'let array be [[1, 2], [3, 4]]', v => v.array && v.array[0][0] === 1],
+    ['empty array', 'let array be []', v => Array.isArray(v.array) && v.array.length === 0],
     
     // --- OBJECTS ---
-    ['object literal', 'let obj be {"a": 1, "b": 2}', v => v.obj && v.obj.a === 1],
-    ['nested object', 'let obj be {"user": {"name": "test"}}', v => v.obj && v.obj.user.name === 'test'],
-    ['empty object', 'let obj be {}', v => v.obj && typeof v.obj === 'object'],
+    ['object literal', 'let object be {"a": 1, "b": 2}', v => v.object && v.object.a === 1],
+    ['nested object', 'let object be {"user": {"name": "test"}}', v => v.object && v.object.user.name === 'test'],
+    ['empty object', 'let object be {}', v => v.object && typeof v.object === 'object'],
     
     // --- MATH ---
     ['addition', 'let x be 10 plus 5', v => v.x === 15],
@@ -77,12 +77,12 @@ async function test(name, code, check) {
     ['function no return', 'define function "noop" with x\n  let y be x\nend\ncall function "noop" with 5 into result', v => v.result === undefined || v.result === null],
     
     // --- ARRAY METHODS ---
-    ['transform (map)', 'let arr be [1, 2, 3]\ntransform arr with n into n times 2 into result', v => JSON.stringify(v.result) === '[2,4,6]'],
-    ['reduce', 'let arr be [1, 2, 3, 4]\nreduce arr with total and n starting from 0 into sum\n  let total be total plus n\nend', v => v.sum === 10],
-    ['every true', 'let arr be [2, 4, 6]\nevery n in arr is greater than 0 into result', v => v.result === true],
-    ['every false', 'let arr be [2, -1, 6]\nevery n in arr is greater than 0 into result', v => v.result === false],
-    ['any true', 'let arr be [1, 2, 10]\nany n in arr is greater than 5 into result', v => v.result === true],
-    ['any false', 'let arr be [1, 2, 3]\nany n in arr is greater than 5 into result', v => v.result === false],
+    ['transform (map)', 'let array be [1, 2, 3]\ntransform array with number into number times 2 into result', v => JSON.stringify(v.result) === '[2,4,6]'],
+    ['reduce', 'let array be [1, 2, 3, 4]\nreduce array with total and number starting from 0 into sum\n  let total be total plus number\nend', v => v.sum === 10],
+    ['every true', 'let array be [2, 4, 6]\nevery number in array is greater than 0 into result', v => v.result === true],
+    ['every false', 'let array be [2, -1, 6]\nevery number in array is greater than 0 into result', v => v.result === false],
+    ['any true', 'let array be [1, 2, 10]\nany number in array is greater than 5 into result', v => v.result === true],
+    ['any false', 'let array be [1, 2, 3]\nany number in array is greater than 5 into result', v => v.result === false],
     
     // --- OBJECT METHODS ---
     ['copy (deep clone)', 'let orig be {"a": 1}\ncopy orig into clone', v => v.clone && v.clone.a === 1],

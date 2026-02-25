@@ -35,8 +35,8 @@ end
 
 # API: Get a single user
 when the server receives a "GET" request to "/api/users/:id" then
-  set params to get the params from request
-  set userId to get id from params
+  set parameters to get the params from request
+  set userId to get id from parameters
   set foundUser to nothing
   for each person in users do
     if get id from person equals userId then

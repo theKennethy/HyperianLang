@@ -59,8 +59,8 @@ end
 
 # Toggle a todo
 when the server receives a "POST" request to "/toggle/:id" then
-  set params to get the params from request
-  set todoId to get id from params
+  set parameters to get the params from request
+  set todoId to get id from parameters
   log "Toggling todo: " + todoId
   # Redirect back to main page
   send html "<html><head><meta http-equiv='refresh' content='0;url=/'></head></html>"

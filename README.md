@@ -257,13 +257,13 @@ call method "getRaise" on bob with 5000
 | Concept | Syntax |
 |---------|--------|
 | Define class | `define class "Name" with prop1 and prop2` |
-| Constructor | `define constructor with args` |
-| Method | `define method "name" with args` |
+| Constructor | `define constructor with arguments` |
+| Method | `define method "name" with arguments` |
 | No args | `with no arguments` |
 | Inheritance | `define class "Child" extends "Parent"` |
-| Create instance | `new "ClassName" with args into variable` |
+| Create instance | `new "ClassName" with arguments into variable` |
 | Access this | `this propertyName` or `set this prop to value` |
-| Call method | `call method "name" on object with args` |
+| Call method | `call method "name" on object with arguments` |
 
 ### Arrays
 
@@ -394,8 +394,8 @@ end
 
 # Route parameters
 when the server receives a "GET" request to "/users/:id" then
-  set params to get the params from request
-  set userId to get id from params
+  set parameters to get the params from request
+  set userId to get id from parameters
   respond with { userId: userId }
 end
 ```
@@ -458,8 +458,8 @@ Access request data using `get X from request`:
 set body to get the body from request
 
 # Get URL parameters (for routes like /users/:id)
-set params to get the params from request
-set id to get id from params
+set parameters to get the params from request
+set id to get id from parameters
 
 # Get query parameters
 set query to get the query from request
