@@ -22,6 +22,10 @@
     "comments": {
       "patterns": [
         {
+          "name": "comment.line.number-sign.hyperianlang",
+          "match": "#.*$"
+        },
+        {
           "name": "comment.line.double-slash.hyperianlang",
           "match": "//.*$"
         },
@@ -116,11 +120,11 @@
       "patterns": [
         {
           "name": "keyword.control.hyperianlang",
-          "match": "\\b(if|else|then|end|repeat|while|do|for|try|catch|break|skip|return|match|on)\\b"
+          "match": "\\b(if|else|otherwise|then|end|repeat|while|do|for|try|catch|finally|break|skip|return|match|on|each|every)\\b"
         },
         {
           "name": "keyword.control.flow.hyperianlang",
-          "match": "\\b(when|where)\\b"
+          "match": "\\b(when|where|default)\\b"
         }
       ]
     },
@@ -135,7 +139,15 @@
         },
         {
           "name": "storage.modifier.hyperianlang",
-          "match": "\\b(define|function)\\b"
+          "match": "\\b(define|function|class|method|constructor|property|static|private|public|extends|inherit|new|super)\\b"
+        },
+        {
+          "name": "keyword.other.module.hyperianlang",
+          "match": "\\b(import|export|from|as|require)\\b"
+        },
+        {
+          "name": "keyword.control.async.hyperianlang",
+          "match": "\\b(async|await|promise|resolve|reject)\\b"
         }
       ]
     },
@@ -143,7 +155,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.hyperianlang",
-          "match": "\\b(set|increase|decrease|print|call)\\b"
+          "match": "\\b(set|increase|decrease|print|call|create|check)\\b"
         },
         {
           "name": "support.function.game.hyperianlang",
@@ -151,11 +163,11 @@
         },
         {
           "name": "support.function.data.hyperianlang",
-          "match": "\\b(append|fetch|post|parse|stringify|read|write|split|replace|convert|count|round|floor|ceil|abs|sqrt|min|max|random|join|trim|uppercase|lowercase|sort|reverse|filter|merge|flatten|get|index|slice|find|clamp|log|exit|run|create|pad|sign|type)\\b"
+          "match": "\\b(append|fetch|post|parse|stringify|read|write|split|replace|convert|count|round|floor|ceil|abs|sqrt|min|max|random|join|trim|uppercase|lowercase|sort|reverse|filter|merge|flatten|get|index|slice|find|clamp|log|exit|run|pad|sign|type|copy|assign|length|size|list|object|map|string|number|boolean|array)\\b"
         },
         {
           "name": "support.function.array.hyperianlang",
-          "match": "\\b(transform|reduce|every|any|copy|assign)\\b"
+          "match": "\\b(transform|reduce|every|any|spread|extract)\\b"
         },
         {
           "name": "support.function.path.hyperianlang",
@@ -163,7 +175,23 @@
         },
         {
           "name": "support.function.server.hyperianlang",
-          "match": "\\b(serve|respond|listen)\\b"
+          "match": "\\b(serve|respond|listen|start|send|receives|request|server|port|connect|disconnect|broadcast|file|body|parameters|status)\\b"
+        },
+        {
+          "name": "support.function.crypto.hyperianlang",
+          "match": "\\b(hash|encrypt|decrypt|encode|decode|buffer)\\b"
+        },
+        {
+          "name": "support.function.regex.hyperianlang",
+          "match": "\\b(regex|pattern|test|matches|capture)\\b"
+        },
+        {
+          "name": "support.function.error.hyperianlang",
+          "match": "\\b(throw|raise|error|safely)\\b"
+        },
+        {
+          "name": "support.function.database.hyperianlang",
+          "match": "\\b(query|insert|update|select)\\b"
         }
       ]
     },
@@ -215,7 +243,7 @@
         },
         {
           "name": "constant.language.null.hyperianlang",
-          "match": "\\b(null|undefined)\\b"
+          "match": "\\b(null|undefined|nothing|empty)\\b"
         },
         {
           "name": "support.constant.math.hyperianlang",
@@ -227,11 +255,11 @@
       "patterns": [
         {
           "name": "keyword.other.preposition.hyperianlang",
-          "match": "\\b(to|by|at|from|with|of|in|into|starting|be)\\b"
+          "match": "\\b(to|by|at|from|with|of|in|into|starting|ending|containing|using|called|named|be)\\b"
         },
         {
           "name": "keyword.other.unit.hyperianlang",
-          "match": "\\b(times|seconds|frames|fps)\\b"
+          "match": "\\b(times|seconds|frames|fps|milliseconds)\\b"
         }
       ]
     },
