@@ -1211,13 +1211,25 @@ class HLParser {
       // ARRAY METHODS - English readable
       // ═══════════════════════════════════════════════════════════════════════
       case 'reduce':
-        if (this._peek(1)?.value === 'right') return this._parseReduceRightEnglish();
+        if (this._peek(1)?.value === 'right' || this._peek(1)?.value === 'from') return this._parseReduceRightEnglish();
         return this._parseReduce();
-      case 'item':
-        if (this._peek(1)?.value === 'at') return this._parseItemAtEnglish();
+      case 'get':
+        if (this._peek(1)?.value === 'item' || this._peek(1)?.value === 'element') return this._parseGetItemAtEnglish();
+        if (this._peek(1)?.value === 'last' || this._peek(1)?.value === 'first') return this._parseGetFirstLastEnglish();
         this._next(); return null;
-      case 'sorted':    return this._parseToSortedEnglish();
-      case 'reversed':  return this._parseToReversedEnglish();
+      case 'last':
+        if (this._peek(1)?.value === 'item' || this._peek(1)?.value === 'element' || this._peek(1)?.value === 'of') return this._parseLastItemEnglish();
+        this._next(); return null;
+      case 'first':
+        if (this._peek(1)?.value === 'item' || this._peek(1)?.value === 'element' || this._peek(1)?.value === 'of') return this._parseFirstItemEnglish();
+        if (this._peek(1)?.value === 'of' || this._peek(1)?.value === 'promises') return this._parsePromiseAnyEnglish();
+        this._next(); return null;
+      case 'sorted':
+        if (this._peek(1)?.value === 'copy') return this._parseToSortedEnglish();
+        return this._parseToSortedEnglish();
+      case 'reversed':
+        if (this._peek(1)?.value === 'copy') return this._parseToReversedEnglish();
+        return this._parseToReversedEnglish();
       // ═══════════════════════════════════════════════════════════════════════
       // STRING METHODS - English readable
       // ═══════════════════════════════════════════════════════════════════════
@@ -1234,13 +1246,19 @@ class HLParser {
       // ═══════════════════════════════════════════════════════════════════════
       // NUMBER METHODS - English readable
       // ═══════════════════════════════════════════════════════════════════════
-      case 'is':
+      case 'check':
+        if (this._peek(1)?.value === 'if') return this._parseCheckIfEnglish();
         if (this._peek(1)?.value === 'integer') return this._parseIsIntegerEnglish();
         if (this._peek(1)?.value === 'finite') return this._parseIsFiniteEnglish();
-        if (this._peek(1)?.value === 'nan' || this._peek(1)?.value === 'not') return this._parseIsNaNEnglish();
+        if (this._peek(1)?.value === 'nan') return this._parseIsNaNEnglish();
         this._next(); return null;
-      case 'fixed':     return this._parseToFixedEnglish();
-      case 'precision': return this._parseToPrecisionEnglish();
+      case 'round':
+        if (this._peek(1)?.value === 'to') return this._parseRoundToEnglish();
+        return this._parseRoundEnglish();
+      case 'format':
+        if (this._peek(1)?.value === 'with') return this._parseFormatWithEnglish();
+        if (this._peek(1)?.value === 'to') return this._parseRoundToEnglish();
+        this._next(); return null;
       // ═══════════════════════════════════════════════════════════════════════
       // MATH METHODS - English readable
       // ═══════════════════════════════════════════════════════════════════════
@@ -4635,15 +4653,17 @@ class HLParser {
     return { type: 'getPrototype', obj, out };
   }
 
-  // "reduce right arr with fn starting 0 into result"
+  // "reduce from right arr with fn into result" or "reduce right arr with fn into result"
   _parseReduceRightEnglish() {
     this._next(); // consume 'reduce'
-    this._next(); // consume 'right'
+    if (this._is('from')) this._next(); // consume 'from' if present
+    if (this._is('right') || this._is('the')) this._next(); // consume 'right' or 'the'
+    if (this._is('right')) this._next(); // consume 'right' after 'the'
     const arr = this._consumeIdent();
     if (this._is('with') || this._is('using')) this._next();
     const fn = this._consumeIdent();
     let initial = null;
-    if (this._is('starting') || this._is('from')) {
+    if (this._is('starting') || this._is('from') || this._is('initial')) {
       this._next();
       initial = this._parseValue();
     }
@@ -4652,15 +4672,53 @@ class HLParser {
     return { type: 'reduceRight', arr, fn, initial, out };
   }
 
-  // "item at arr -1 into last"
-  _parseItemAtEnglish() {
-    this._next(); // consume 'item'
-    this._next(); // consume 'at'
-    const arr = this._consumeIdent();
+  // "get item at -1 in arr into last" or "get element at 0 in arr into first"
+  _parseGetItemAtEnglish() {
+    this._next(); // consume 'get'
+    this._next(); // consume 'item' or 'element'
+    if (this._is('at')) this._next();
     const index = this._parseValue();
+    if (this._is('in') || this._is('of') || this._is('from')) this._next();
+    const arr = this._consumeIdent();
     if (this._is('into') || this._is('called')) this._next();
     const out = this._consumeIdent();
     return { type: 'itemAt', arr, index, out };
+  }
+
+  // "get last of arr into last" or "get first of arr into first"
+  _parseGetFirstLastEnglish() {
+    this._next(); // consume 'get'
+    const which = this._peek()?.value; // 'last' or 'first'
+    this._next();
+    if (this._is('item') || this._is('element')) this._next();
+    if (this._is('of') || this._is('in') || this._is('from')) this._next();
+    const arr = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    const index = which === 'last' ? { type: 'NUMBER', value: -1 } : { type: 'NUMBER', value: 0 };
+    return { type: 'itemAt', arr, index, out };
+  }
+
+  // "last item of arr into last" or "last of arr into x"
+  _parseLastItemEnglish() {
+    this._next(); // consume 'last'
+    if (this._is('item') || this._is('element')) this._next();
+    if (this._is('of') || this._is('in') || this._is('from')) this._next();
+    const arr = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'itemAt', arr, index: { type: 'NUMBER', value: -1 }, out };
+  }
+
+  // "first item of arr into first" or "first of arr into x"
+  _parseFirstItemEnglish() {
+    this._next(); // consume 'first'
+    if (this._is('item') || this._is('element')) this._next();
+    if (this._is('of') || this._is('in') || this._is('from')) this._next();
+    const arr = this._consumeIdent();
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'itemAt', arr, index: { type: 'NUMBER', value: 0 }, out };
   }
 
   // "sorted arr into sortedArr" or "sorted copy of arr into newArr"
@@ -4734,9 +4792,32 @@ class HLParser {
     return { type: 'localeCompare', a, b, locale, out };
   }
 
-  // "is integer value into result"
+  // "check if value is integer into result" or "check integer value into result"
+  _parseCheckIfEnglish() {
+    this._next(); // consume 'check'
+    this._next(); // consume 'if'
+    const value = this._parseValue();
+    if (this._is('is')) this._next();
+    const checkType = this._peek()?.value; // 'integer', 'finite', 'nan', 'number'
+    this._next();
+    if (this._is('a')) this._next();
+    if (this._is('number')) { // "is not a number"
+      this._next();
+      if (this._is('into') || this._is('called')) this._next();
+      const out = this._consumeIdent();
+      return { type: 'isNaN', value, out };
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    if (checkType === 'integer') return { type: 'isInteger', value, out };
+    if (checkType === 'finite') return { type: 'isFinite', value, out };
+    if (checkType === 'nan' || checkType === 'not') return { type: 'isNaN', value, out };
+    return { type: 'isNaN', value, out };
+  }
+
+  // "check integer value into result" (shorthand)
   _parseIsIntegerEnglish() {
-    this._next(); // consume 'is'
+    this._next(); // consume 'check'
     this._next(); // consume 'integer'
     const value = this._parseValue();
     if (this._is('into') || this._is('called')) this._next();
@@ -4744,9 +4825,9 @@ class HLParser {
     return { type: 'isInteger', value, out };
   }
 
-  // "is finite value into result"
+  // "check finite value into result" (shorthand)
   _parseIsFiniteEnglish() {
-    this._next(); // consume 'is'
+    this._next(); // consume 'check'
     this._next(); // consume 'finite'
     const value = this._parseValue();
     if (this._is('into') || this._is('called')) this._next();
@@ -4754,41 +4835,74 @@ class HLParser {
     return { type: 'isFinite', value, out };
   }
 
-  // "is nan value into result" or "is not a number value into result"
+  // "check nan value into result" (shorthand)
   _parseIsNaNEnglish() {
-    this._next(); // consume 'is'
-    if (this._is('not')) {
-      this._next();
-      if (this._is('a')) this._next();
-      if (this._is('number')) this._next();
-    } else {
-      this._next(); // consume 'nan'
-    }
+    this._next(); // consume 'check'
+    this._next(); // consume 'nan'
     const value = this._parseValue();
     if (this._is('into') || this._is('called')) this._next();
     const out = this._consumeIdent();
     return { type: 'isNaN', value, out };
   }
 
-  // "fixed num 2 into str"
-  _parseToFixedEnglish() {
-    this._next(); // consume 'fixed'
-    const num = this._parseValue();
+  // "round to 2 decimals num into str" or "round num to 2 decimals into str"
+  _parseRoundToEnglish() {
+    this._next(); // consume 'round'
     if (this._is('to')) this._next();
-    const digits = this._parseValue();
-    if (this._is('digits') || this._is('places') || this._is('decimals')) this._next();
+    let num, digits;
+    const first = this._parseValue();
+    if (this._is('decimals') || this._is('places') || this._is('digits')) {
+      // round to 2 decimals num
+      digits = first;
+      this._next(); // consume 'decimals'/'places'/'digits'
+      num = this._parseValue();
+    } else if (this._is('to')) {
+      // round num to 2 ...
+      num = first;
+      this._next(); // consume 'to'
+      digits = this._parseValue();
+      if (this._is('decimals') || this._is('places') || this._is('digits')) this._next();
+    } else {
+      // round num 2
+      num = first;
+      digits = this._parseValue();
+    }
     if (this._is('into') || this._is('called')) this._next();
     const out = this._consumeIdent();
     return { type: 'toFixed', num, digits, out };
   }
 
-  // "precision num 5 into str"
-  _parseToPrecisionEnglish() {
-    this._next(); // consume 'precision'
+  // "round num into result" (shorthand, rounds to 0 decimals)
+  _parseRoundEnglish() {
+    this._next(); // consume 'round'
     const num = this._parseValue();
-    if (this._is('to')) this._next();
+    let digits = { type: 'NUMBER', value: 0 };
+    if (this._is('to')) {
+      this._next();
+      digits = this._parseValue();
+      if (this._is('decimals') || this._is('places') || this._is('digits')) this._next();
+    }
+    if (this._is('into') || this._is('called')) this._next();
+    const out = this._consumeIdent();
+    return { type: 'toFixed', num, digits, out };
+  }
+
+  // "format with 5 digits num into str" or "format num with 5 digits into str"
+  _parseFormatWithEnglish() {
+    this._next(); // consume 'format'
+    if (this._is('with')) {
+      this._next();
+      const precision = this._parseValue();
+      if (this._is('digits') || this._is('precision')) this._next();
+      const num = this._parseValue();
+      if (this._is('into') || this._is('called')) this._next();
+      const out = this._consumeIdent();
+      return { type: 'toPrecision', num, precision, out };
+    }
+    const num = this._parseValue();
+    if (this._is('with')) this._next();
     const precision = this._parseValue();
-    if (this._is('digits')) this._next();
+    if (this._is('digits') || this._is('precision')) this._next();
     if (this._is('into') || this._is('called')) this._next();
     const out = this._consumeIdent();
     return { type: 'toPrecision', num, precision, out };
