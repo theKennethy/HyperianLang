@@ -6695,8 +6695,81 @@ class HLParser {
       return { type: 'clientSetVar', name: target, value };
     }
     
+    // get value of SELECTOR into VAR - get form field value
+    if (this._is('get')) {
+      this._next();
+      if (this._is('value') || this._is('the')) {
+        if (this._is('the')) this._next();
+        if (this._is('value')) this._next();
+        if (this._is('of') || this._is('from')) this._next();
+        const selector = this._parseClientValue();
+        let out = null;
+        if (this._is('into') || this._is('as')) {
+          this._next();
+          out = this._consumeIdent();
+        }
+        return { type: 'clientGetValue', selector, out };
+      }
+      // Fall through to select behavior
+      let all = false;
+      if (this._is('all') || this._is('every')) { this._next(); all = true; }
+      if (this._is('element') || this._is('elements')) this._next();
+      if (this._is('matching') || this._is('with')) this._next();
+      const selector = this._parseClientValue();
+      let out = null;
+      if (this._is('into') || this._is('as') || this._is('called')) {
+        this._next();
+        out = this._consumeIdent();
+      }
+      return { type: 'clientSelect', selector, all, out };
+    }
+    
+    // create NAME data with KEY VALUE and KEY2 VALUE2 - create object
+    if (this._is('create')) {
+      this._next();
+      const varName = this._consumeIdent();
+      if (this._is('data') || this._is('object')) this._next();
+      if (this._is('with')) this._next();
+      const props = [];
+      do {
+        if (this._is('and')) this._next();
+        const key = this._consumeIdent();
+        const value = this._parseClientValue();
+        props.push({ key, value });
+      } while (this._is('and'));
+      return { type: 'clientCreateObject', varName, props };
+    }
+    
+    // send VAR to URL via METHOD into RESULT - fetch with body
+    if (this._is('send')) {
+      this._next();
+      const bodyVar = this._consumeIdent();
+      if (this._is('data')) this._next();
+      if (this._is('to')) this._next();
+      const url = this._parseClientValue();
+      let method = 'POST';
+      if (this._is('via') || this._is('using') || this._is('with')) {
+        this._next();
+        method = this._consumeIdent().toUpperCase();
+      }
+      let out = null;
+      if (this._is('into') || this._is('as')) {
+        this._next();
+        out = this._consumeIdent();
+      }
+      return { type: 'clientSendData', bodyVar, url, method, out };
+    }
+    
+    // clear SELECTOR field - clear form input
+    if (this._is('clear')) {
+      this._next();
+      const selector = this._parseClientValue();
+      if (this._is('field') || this._is('input')) this._next();
+      return { type: 'clientClear', selector };
+    }
+    
     // select "selector" into VAR / select all "selector" into VAR
-    if (this._is('select') || this._is('get') || this._is('find')) {
+    if (this._is('select') || this._is('find')) {
       this._next();
       let all = false;
       if (this._is('all') || this._is('every')) { this._next(); all = true; }
@@ -6746,13 +6819,15 @@ class HLParser {
     if (this._is('fetch') || this._is('request')) {
       this._next();
       if (this._is('from')) this._next();
-      const url = this._parseValue();
+      const url = this._parseClientValue();
       let method = 'GET';
       let bodyData = null;
       if (this._is('with') || this._is('using')) {
         this._next();
-        if (this._is('method')) { this._next(); method = this._parseValue(); }
+        if (this._is('method')) { this._next(); method = this._consumeIdent().toUpperCase(); }
         if (this._is('post') || this._is('POST')) { this._next(); method = 'POST'; }
+        if (this._is('get') || this._is('GET')) { this._next(); method = 'GET'; }
+        if (this._is('and')) this._next();
         if (this._is('body') || this._is('data')) {
           this._next();
           bodyData = this._parseClientValue();
@@ -6764,6 +6839,117 @@ class HLParser {
         out = this._consumeIdent();
       }
       return { type: 'clientFetch', url, method, body: bodyData, out };
+    }
+    
+    // localStorage: save VALUE to storage KEY / store VALUE as KEY
+    if (this._is('save') || this._is('store')) {
+      this._next();
+      const value = this._parseClientValue();
+      if (this._is('to') || this._is('in') || this._is('as')) this._next();
+      if (this._is('storage') || this._is('local')) this._next();
+      if (this._is('storage')) this._next();
+      if (this._is('as') || this._is('key') || this._is('under')) this._next();
+      const key = this._parseClientValue();
+      return { type: 'clientStorageSave', key, value };
+    }
+    
+    // localStorage: load from storage KEY into VAR / get from storage KEY into VAR
+    if (this._is('load') || this._is('get')) {
+      const action = this._peek()?.value;
+      this._next();
+      if (this._is('from')) this._next();
+      if (this._is('storage') || this._is('local')) {
+        this._next();
+        if (this._is('storage')) this._next();
+        const key = this._parseClientValue();
+        let out = null;
+        if (this._is('into') || this._is('as') || this._is('to')) {
+          this._next();
+          out = this._consumeIdent();
+        }
+        return { type: 'clientStorageLoad', key, out };
+      }
+      // Not storage, revert - this could be something else
+      this._pos--;
+    }
+    
+    // localStorage: remove from storage KEY / delete from storage KEY
+    if (this._is('remove') || this._is('delete') || this._is('clear')) {
+      this._next();
+      if (this._is('from')) this._next();
+      if (this._is('storage') || this._is('local')) {
+        this._next();
+        if (this._is('storage')) this._next();
+        if (this._is('all') || this._is('everything')) {
+          this._next();
+          return { type: 'clientStorageClear' };
+        }
+        const key = this._parseClientValue();
+        return { type: 'clientStorageRemove', key };
+      }
+      this._pos--;
+    }
+    
+    // IndexedDB: open database NAME with store STORENAME
+    if (this._is('open')) {
+      this._next();
+      if (this._is('database') || this._is('db') || this._is('indexed')) {
+        this._next();
+        if (this._is('database') || this._is('db')) this._next();
+        const dbName = this._parseClientValue();
+        let storeName = null;
+        let version = null;
+        if (this._is('with')) {
+          this._next();
+          if (this._is('store')) { this._next(); storeName = this._parseClientValue(); }
+          if (this._is('and')) this._next();
+          if (this._is('version')) { this._next(); version = this._parseClientValue(); }
+        }
+        let out = null;
+        if (this._is('into') || this._is('as')) {
+          this._next();
+          out = this._consumeIdent();
+        }
+        return { type: 'clientDbOpen', dbName, storeName, version, out };
+      }
+      this._pos--;
+    }
+    
+    // IndexedDB: save to database VAR with key KEY and value VALUE
+    if (this._is('add') && this._peek(1)?.value === 'to' && (this._peek(2)?.value === 'database' || this._peek(2)?.value === 'db')) {
+      this._next(); // add
+      this._next(); // to
+      this._next(); // database
+      const dbVar = this._consumeIdent();
+      let key = null;
+      let value = null;
+      if (this._is('with')) {
+        this._next();
+        if (this._is('key')) { this._next(); key = this._parseClientValue(); }
+        if (this._is('and')) this._next();
+        if (this._is('value') || this._is('data')) { this._next(); value = this._parseClientValue(); }
+      }
+      return { type: 'clientDbAdd', dbVar, key, value };
+    }
+    
+    // IndexedDB: get from database VAR with key KEY into VAR
+    if (this._is('get') && this._peek(1)?.value === 'from' && (this._peek(2)?.value === 'database' || this._peek(2)?.value === 'db')) {
+      this._next(); // get
+      this._next(); // from
+      this._next(); // database
+      const dbVar = this._consumeIdent();
+      let key = null;
+      if (this._is('with') || this._is('key')) {
+        if (this._is('with')) this._next();
+        if (this._is('key')) this._next();
+        key = this._parseClientValue();
+      }
+      let out = null;
+      if (this._is('into') || this._is('as')) {
+        this._next();
+        out = this._consumeIdent();
+      }
+      return { type: 'clientDbGet', dbVar, key, out };
     }
     
     // for each ITEM in COLLECTION ... end for
@@ -6788,7 +6974,12 @@ class HLParser {
       const left = this._parseClientValue();
       let op = 'equals';
       let right = { type: 'boolean', value: true };
-      if (this._is('equals') || this._is('is') || this._is('==')) {
+      // Check for truthy check: if VAR exists then / if VAR then (no comparison)
+      if (this._is('exists')) {
+        this._next();
+        op = 'truthy';
+        right = null;
+      } else if (this._is('equals') || this._is('is') || this._is('==')) {
         this._next();
         op = 'equals';
         right = this._parseClientValue();
@@ -6796,6 +6987,10 @@ class HLParser {
         this._next();
         op = 'notEquals';
         right = this._parseClientValue();
+      } else if (this._is('then')) {
+        // No comparison operator, treat as truthy check
+        op = 'truthy';
+        right = null;
       }
       if (this._is('then')) this._next();
       const body = [];
@@ -6911,6 +7106,21 @@ class HLParser {
     const tok = this._peek();
     if (!tok) return null;
     
+    // Object literal with braces: { key: value, key2: value2 }
+    if (tok.value === '{') {
+      this._next(); // skip {
+      const props = [];
+      while (this._peek() && this._peek().value !== '}') {
+        const key = this._consumeIdent();
+        if (this._peek()?.value === ':') this._next();
+        const value = this._parseClientValue();
+        props.push({ key, value });
+        if (this._peek()?.value === ',') this._next();
+      }
+      if (this._peek()?.value === '}') this._next();
+      return { type: 'object', props };
+    }
+    
     // String literal
     if (tok.type === 'STRING') {
       let str = { type: 'string', value: this._next().value };
@@ -6939,23 +7149,51 @@ class HLParser {
       return { type: 'boolean', value: false };
     }
     
+    // Object literal: object with KEY as VALUE and KEY2 as VALUE2
+    if (this._is('object')) {
+      this._next();
+      if (this._is('with')) this._next();
+      const props = [];
+      do {
+        if (this._is('and')) this._next();
+        const key = this._consumeIdent();
+        if (this._is('as') || this._is('to') || this._is('=')) this._next();
+        const value = this._parseClientValue();
+        props.push({ key, value });
+      } while (this._is('and'));
+      return { type: 'object', props };
+    }
+    
     // Property access: VAR property PROP / VAR.property
-    // Also handle keywords/actions that can be used as variable names (like 'error')
-    if (tok.type === 'IDENT' || tok.type === 'KEYWORD' || tok.type === 'ACTION') {
+    // Also handle keywords/actions/preps that can be used as variable names (like 'error', 'data')
+    if (tok.type === 'IDENT' || tok.type === 'KEYWORD' || tok.type === 'ACTION' || tok.type === 'PREP') {
       let name = this._consumeIdent();
       
       // Check for property chain: data property x property y
+      // Also handle method call: VAR property METHOD with ARG
       while (this._is('property') || this._is('attribute') || this._peek()?.value === '.') {
         if (this._peek()?.value === '.') {
           this._next(); // skip .
           name += '.' + this._consumeIdent();
         } else {
           this._next(); // skip 'property'/'attribute'
-          name += '.' + this._consumeIdent();
+          const propName = this._consumeIdent();
+          // Check if this is a method call with arguments
+          if (this._is('with')) {
+            this._next();
+            const args = [];
+            args.push(this._parseClientValue());
+            while (this._is('and') || this._is(',')) {
+              this._next();
+              args.push(this._parseClientValue());
+            }
+            return { type: 'methodCall', object: name, method: propName, args };
+          }
+          name += '.' + propName;
         }
       }
       
-      // Check for method call
+      // Check for method call (no-arg)
       if (this._is('json')) {
         this._next();
         return { type: 'methodCall', object: name, method: 'json', args: [] };
@@ -12726,9 +12964,11 @@ class HLInterpreter {
   }
   
   // Client JS Generator: Convert HyperianLang client AST to JavaScript
-  _generateClientJS(statements, indent = 0) {
+  _generateClientJS(statements, indent = 0, declaredVars = null) {
     const pad = '  '.repeat(indent);
     const lines = [];
+    // Track declared variables to avoid re-declaring with let
+    const localVars = declaredVars || new Set();
     
     for (const stmt of statements) {
       if (!stmt) continue;
@@ -12738,24 +12978,42 @@ class HLInterpreter {
           const asyncKeyword = stmt.isAsync ? 'async ' : '';
           const params = stmt.params.join(', ');
           lines.push(`${pad}${asyncKeyword}function ${stmt.name}(${params}) {`);
-          lines.push(this._generateClientJS(stmt.body, indent + 1));
+          // New scope for function body - start with params as declared
+          const funcVars = new Set(stmt.params);
+          lines.push(this._generateClientJS(stmt.body, indent + 1, funcVars));
           lines.push(`${pad}}`);
           break;
         }
         
         case 'clientEvent': {
-          const target = stmt.target === 'document' ? 'document' : 
-                         stmt.target === 'window' ? 'window' :
-                         `document.getElementById('${stmt.target}')`;
-          lines.push(`${pad}${target}.addEventListener('${stmt.event}', async (e) => {`);
-          lines.push(this._generateClientJS(stmt.body, indent + 1));
+          let targetJS;
+          if (stmt.target === 'document') {
+            targetJS = 'document';
+          } else if (stmt.target === 'window') {
+            targetJS = 'window';
+          } else if (typeof stmt.target === 'object' && stmt.target.type === 'string') {
+            // String selector like "#name"
+            targetJS = `document.querySelector('${stmt.target.value}')`;
+          } else {
+            // Plain identifier
+            targetJS = `document.getElementById('${stmt.target}')`;
+          }
+          lines.push(`${pad}${targetJS}.addEventListener('${stmt.event}', async (e) => {`);
+          // Event handler has its own scope
+          const eventVars = new Set(['e']);
+          lines.push(this._generateClientJS(stmt.body, indent + 1, eventVars));
           lines.push(`${pad}});`);
           break;
         }
         
         case 'clientSetVar': {
           const value = this._generateClientValue(stmt.value);
-          lines.push(`${pad}let ${stmt.name} = ${value};`);
+          if (localVars.has(stmt.name)) {
+            lines.push(`${pad}${stmt.name} = ${value};`);
+          } else {
+            localVars.add(stmt.name);
+            lines.push(`${pad}let ${stmt.name} = ${value};`);
+          }
           break;
         }
         
@@ -12777,10 +13035,47 @@ class HLInterpreter {
           const method = stmt.all ? 'querySelectorAll' : 'querySelector';
           const selector = this._generateClientValue(stmt.selector);
           if (stmt.out) {
+            localVars.add(stmt.out);
             lines.push(`${pad}let ${stmt.out} = document.${method}(${selector});`);
           } else {
             lines.push(`${pad}document.${method}(${selector});`);
           }
+          break;
+        }
+        
+        case 'clientGetValue': {
+          const selector = this._generateClientValue(stmt.selector);
+          if (stmt.out) {
+            localVars.add(stmt.out);
+            lines.push(`${pad}let ${stmt.out} = document.querySelector(${selector}).value;`);
+          }
+          break;
+        }
+        
+        case 'clientCreateObject': {
+          const props = stmt.props.map(p => `${p.key}: ${this._generateClientValue(p.value)}`).join(', ');
+          localVars.add(stmt.varName);
+          lines.push(`${pad}let ${stmt.varName} = {${props}};`);
+          break;
+        }
+        
+        case 'clientSendData': {
+          const url = this._generateClientValue(stmt.url);
+          lines.push(`${pad}let _fetchRes = await fetch(${url}, {`);
+          lines.push(`${pad}  method: '${stmt.method}',`);
+          lines.push(`${pad}  headers: {'Content-Type': 'application/json'},`);
+          lines.push(`${pad}  body: JSON.stringify(${stmt.bodyVar})`);
+          lines.push(`${pad}});`);
+          if (stmt.out) {
+            localVars.add(stmt.out);
+            lines.push(`${pad}let ${stmt.out} = await _fetchRes.json();`);
+          }
+          break;
+        }
+        
+        case 'clientClear': {
+          const selector = this._generateClientValue(stmt.selector);
+          lines.push(`${pad}document.querySelector(${selector}).value = '';`);
           break;
         }
         
@@ -12822,23 +13117,115 @@ class HLInterpreter {
           break;
         }
         
+        // localStorage operations
+        case 'clientStorageSave': {
+          const key = this._generateClientValue(stmt.key);
+          const value = this._generateClientValue(stmt.value);
+          lines.push(`${pad}localStorage.setItem(${key}, JSON.stringify(${value}));`);
+          break;
+        }
+        
+        case 'clientStorageLoad': {
+          const key = this._generateClientValue(stmt.key);
+          if (stmt.out) {
+            localVars.add(stmt.out);
+            lines.push(`${pad}let ${stmt.out} = JSON.parse(localStorage.getItem(${key}) || 'null');`);
+          }
+          break;
+        }
+        
+        case 'clientStorageRemove': {
+          const key = this._generateClientValue(stmt.key);
+          lines.push(`${pad}localStorage.removeItem(${key});`);
+          break;
+        }
+        
+        case 'clientStorageClear': {
+          lines.push(`${pad}localStorage.clear();`);
+          break;
+        }
+        
+        // IndexedDB operations
+        case 'clientDbOpen': {
+          const dbName = this._generateClientValue(stmt.dbName);
+          const storeName = stmt.storeName ? this._generateClientValue(stmt.storeName) : "'data'";
+          const version = stmt.version ? this._generateClientValue(stmt.version) : '1';
+          if (stmt.out) {
+            localVars.add(stmt.out);
+          }
+          const varName = stmt.out || '_db';
+          lines.push(`${pad}let ${varName} = await new Promise((resolve, reject) => {`);
+          lines.push(`${pad}  const request = indexedDB.open(${dbName}, ${version});`);
+          lines.push(`${pad}  request.onerror = () => reject(request.error);`);
+          lines.push(`${pad}  request.onsuccess = () => resolve({ db: request.result, store: ${storeName} });`);
+          lines.push(`${pad}  request.onupgradeneeded = (e) => {`);
+          lines.push(`${pad}    const db = e.target.result;`);
+          lines.push(`${pad}    if (!db.objectStoreNames.contains(${storeName})) {`);
+          lines.push(`${pad}      db.createObjectStore(${storeName}, { keyPath: 'id', autoIncrement: true });`);
+          lines.push(`${pad}    }`);
+          lines.push(`${pad}  };`);
+          lines.push(`${pad}});`);
+          break;
+        }
+        
+        case 'clientDbAdd': {
+          const key = stmt.key ? this._generateClientValue(stmt.key) : 'undefined';
+          const value = this._generateClientValue(stmt.value);
+          lines.push(`${pad}await new Promise((resolve, reject) => {`);
+          lines.push(`${pad}  const tx = ${stmt.dbVar}.db.transaction(${stmt.dbVar}.store, 'readwrite');`);
+          lines.push(`${pad}  const store = tx.objectStore(${stmt.dbVar}.store);`);
+          lines.push(`${pad}  const data = ${value};`);
+          if (stmt.key) {
+            lines.push(`${pad}  data.id = ${key};`);
+          }
+          lines.push(`${pad}  const request = store.put(data);`);
+          lines.push(`${pad}  request.onsuccess = () => resolve(request.result);`);
+          lines.push(`${pad}  request.onerror = () => reject(request.error);`);
+          lines.push(`${pad}});`);
+          break;
+        }
+        
+        case 'clientDbGet': {
+          const key = this._generateClientValue(stmt.key);
+          if (stmt.out) {
+            localVars.add(stmt.out);
+          }
+          const varName = stmt.out || '_dbResult';
+          lines.push(`${pad}let ${varName} = await new Promise((resolve, reject) => {`);
+          lines.push(`${pad}  const tx = ${stmt.dbVar}.db.transaction(${stmt.dbVar}.store, 'readonly');`);
+          lines.push(`${pad}  const store = tx.objectStore(${stmt.dbVar}.store);`);
+          lines.push(`${pad}  const request = store.get(${key});`);
+          lines.push(`${pad}  request.onsuccess = () => resolve(request.result);`);
+          lines.push(`${pad}  request.onerror = () => reject(request.error);`);
+          lines.push(`${pad}});`);
+          break;
+        }
+        
         case 'clientForEach': {
           const collection = this._generateClientValue(stmt.collection);
           lines.push(`${pad}for (const ${stmt.itemVar} of ${collection}) {`);
-          lines.push(this._generateClientJS(stmt.body, indent + 1));
+          // Loop body inherits scope but itemVar is already declared by for-of
+          const loopVars = new Set(localVars);
+          loopVars.add(stmt.itemVar);
+          lines.push(this._generateClientJS(stmt.body, indent + 1, loopVars));
           lines.push(`${pad}}`);
           break;
         }
         
         case 'clientIf': {
           const left = this._generateClientValue(stmt.left);
-          const right = this._generateClientValue(stmt.right);
-          const op = stmt.op === 'equals' ? '===' : '!==';
-          lines.push(`${pad}if (${left} ${op} ${right}) {`);
-          lines.push(this._generateClientJS(stmt.body, indent + 1));
+          if (stmt.op === 'truthy') {
+            // Truthy check - just test if value exists/is truthy
+            lines.push(`${pad}if (${left}) {`);
+          } else {
+            const right = this._generateClientValue(stmt.right);
+            const op = stmt.op === 'equals' ? '===' : '!==';
+            lines.push(`${pad}if (${left} ${op} ${right}) {`);
+          }
+          lines.push(this._generateClientJS(stmt.body, indent + 1, localVars));
           if (stmt.elseBody && stmt.elseBody.length > 0) {
             lines.push(`${pad}} else {`);
-            lines.push(this._generateClientJS(stmt.elseBody, indent + 1));
+            lines.push(this._generateClientJS(stmt.elseBody, indent + 1, localVars));
           }
           lines.push(`${pad}}`);
           break;
@@ -12846,9 +13233,12 @@ class HLInterpreter {
         
         case 'clientTry': {
           lines.push(`${pad}try {`);
-          lines.push(this._generateClientJS(stmt.tryBody, indent + 1));
+          lines.push(this._generateClientJS(stmt.tryBody, indent + 1, localVars));
           lines.push(`${pad}} catch (${stmt.errorVar}) {`);
-          lines.push(this._generateClientJS(stmt.catchBody, indent + 1));
+          // Catch block has errorVar declared
+          const catchVars = new Set(localVars);
+          catchVars.add(stmt.errorVar);
+          lines.push(this._generateClientJS(stmt.catchBody, indent + 1, catchVars));
           lines.push(`${pad}}`);
           break;
         }
@@ -12884,7 +13274,8 @@ class HLInterpreter {
           const ms = typeof stmt.ms === 'object' ? this._generateClientValue(stmt.ms) : stmt.ms;
           if (stmt.body && stmt.body.length > 0) {
             lines.push(`${pad}setTimeout(() => {`);
-            lines.push(this._generateClientJS(stmt.body, indent + 1));
+            // setTimeout callback has its own scope
+            lines.push(this._generateClientJS(stmt.body, indent + 1, new Set()));
             lines.push(`${pad}}, ${ms});`);
           } else {
             lines.push(`${pad}await new Promise(r => setTimeout(r, ${ms}));`);
@@ -12910,19 +13301,28 @@ class HLInterpreter {
   // Client JS Generator: Convert a value node to JavaScript expression
   _generateClientValue(valueNode) {
     if (!valueNode) return 'null';
-    if (typeof valueNode === 'string') return `'${valueNode}'`;
+    if (typeof valueNode === 'string') {
+      const escaped = valueNode.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      return `'${escaped}'`;
+    }
     if (typeof valueNode === 'number') return String(valueNode);
     if (typeof valueNode === 'boolean') return String(valueNode);
     
     switch (valueNode.type) {
-      case 'string':
-        return `'${valueNode.value}'`;
+      case 'string': {
+        const escaped = valueNode.value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        return `'${escaped}'`;
+      }
       case 'number':
         return String(valueNode.value);
       case 'boolean':
         return String(valueNode.value);
       case 'variable':
         return valueNode.name;
+      case 'object': {
+        const props = valueNode.props.map(p => `${p.key}: ${this._generateClientValue(p.value)}`).join(', ');
+        return `{${props}}`;
+      }
       case 'concat':
         return `${this._generateClientValue(valueNode.left)} + ${this._generateClientValue(valueNode.right)}`;
       case 'methodCall':

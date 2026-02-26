@@ -293,6 +293,8 @@ when the server receives a "GET" request to "/" then
           set currentPage to "#page-" joined with page
           select currentPage into pageElement
           show pageElement
+          # Remember current page in storage
+          save page to storage "lastPage"
           if page equals "users" then
             call loadUsers
           end if
@@ -307,7 +309,11 @@ when the server receives a "GET" request to "/" then
           set container html to "Loading..."
           try
             fetch "/api/users" into data
-            set container html to "Users loaded"
+            set htmlContent to ""
+            for each user in data property data
+              set htmlContent to htmlContent joined with "<div class='user-card'><strong>" joined with user property name joined with "</strong><br><small>" joined with user property email joined with "</small></div>"
+            end for
+            set container html to htmlContent
           catch error
             set container html to "Error loading users."
           end try
@@ -316,9 +322,10 @@ when the server receives a "GET" request to "/" then
         # Load and display stats
         define async function loadStats
           try
-            fetch "/api/users" into data
+            fetch "/api/users" into response
             select "#user-count" into countEl
-            set countEl text to "3"
+            set users to response property data
+            set countEl text to users property length
           catch error
             log error
           end try
@@ -328,9 +335,18 @@ when the server receives a "GET" request to "/" then
         when userForm submitted then
           prevent default
           try
-            fetch "/api/users" with post into result
+            select "#name" into nameField
+            select "#email" into emailField
+            set userName to nameField property value
+            set userEmail to emailField property value
+            set userData to { name: userName, email: userEmail }
+            fetch "/api/users" with post and body userData into result
             select "#success" into successMsg
             show successMsg
+            set nameField value to ""
+            set emailField value to ""
+            # Clear the draft from storage after successful submit
+            remove from storage "formDraft"
             delay 3000 then
               hide successMsg
             end delay
@@ -339,15 +355,46 @@ when the server receives a "GET" request to "/" then
           end try
         end when
         
-        # Handle URL hash changes
-        when hash changes then
-          set page to "home"
-          call showPage with page
+        # Save form draft as user types
+        when "#name" input then
+          select "#name" into nameField
+          select "#email" into emailField
+          set draft to { name: nameField property value, email: emailField property value }
+          save draft to storage "formDraft"
+        end when
+        
+        when "#email" input then
+          select "#name" into nameField
+          select "#email" into emailField
+          set draft to { name: nameField property value, email: emailField property value }
+          save draft to storage "formDraft"
         end when
         
         # Initialize on page load
         when page loaded then
-          call showPage with "home"
+          # Restore last page from hash or storage
+          set hash to window property location property hash
+          if hash then
+            set page to hash property slice with 1
+            call showPage with page
+            save page to storage "lastPage"
+          else
+            load from storage "lastPage" into savedPage
+            if savedPage then
+              call showPage with savedPage
+            else
+              call showPage with "home"
+            end if
+          end if
+          
+          # Restore form draft if exists
+          load from storage "formDraft" into draft
+          if draft then
+            select "#name" into nameField
+            select "#email" into emailField
+            set nameField value to draft property name
+            set emailField value to draft property email
+          end if
         end when
       end script
       
