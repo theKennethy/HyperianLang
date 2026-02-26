@@ -1,78 +1,336 @@
-# HyperianLang Electron App
-# 100% HyperianLang - No JavaScript!
+# HyperianLang Electron Todo App
+# 100% Pure HyperianLang with IndexedDB Persistence!
 
-log "Starting HyperianLang Electron App..."
+log "Starting HyperianLang Electron App with IndexedDB..."
 
 # App data
 set appName to "My Desktop App"
 set version to "1.0.0"
 
-create a list called todos
-append { id: 1, title: "Learn HyperianLang", done: false } to todos
-append { id: 2, title: "Build an Electron app", done: false } to todos
-append { id: 3, title: "Ship it!", done: false } to todos
-
-set nextId to 4
-
-# Helper: Build the HTML page
-define function renderPage
-  set todoItems to ""
-  
-  for each todo in todos do
-    set todoId to get id from todo
-    set todoTitle to get title from todo
-    set todoDone to get done from todo
-    
-    if todoDone equals true then
-      set todoItems to todoItems + "<li class='todo-item done'><form method='POST' action='/toggle/" + todoId + "'><button class='todo-checkbox'>✓</button></form><span class='todo-text'>" + todoTitle + "</span><span class='badge'>#" + todoId + "</span></li>"
-    otherwise
-      set todoItems to todoItems + "<li class='todo-item'><form method='POST' action='/toggle/" + todoId + "'><button class='todo-checkbox'></button></form><span class='todo-text'>" + todoTitle + "</span><span class='badge'>#" + todoId + "</span></li>"
-    end
-  end
-  
-  if todoItems equals "" then
-    set todoItems to "<li class='empty'>No todos yet. Add one above!</li>"
-  end
-  
-  set html to "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>HyperianLang App</title><style>* { margin: 0; padding: 0; box-sizing: border-box; } body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 40px; } .container { max-width: 600px; margin: 0 auto; } h1 { color: white; text-align: center; margin-bottom: 10px; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); } .subtitle { color: rgba(255,255,255,0.8); text-align: center; margin-bottom: 30px; } .card { background: white; border-radius: 16px; padding: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); } .add-form { display: flex; gap: 10px; margin-bottom: 20px; } input[type='text'] { flex: 1; padding: 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; } button { padding: 15px 25px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; } button:hover { background: #5a6fd6; } .todo-list { list-style: none; } .todo-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; } .todo-item.done .todo-text { text-decoration: line-through; color: #999; } .todo-checkbox { width: 24px; height: 24px; border: 2px solid #ddd; border-radius: 50%; margin-right: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; background: white; } .todo-item.done .todo-checkbox { background: #10b981; border-color: #10b981; color: white; } .todo-text { flex: 1; font-size: 16px; } .badge { background: #667eea; color: white; padding: 4px 10px; border-radius: 20px; font-size: 12px; } .empty { text-align: center; color: #999; padding: 40px; } .app-info { text-align: center; margin-top: 20px; color: rgba(255,255,255,0.7); font-size: 14px; }</style></head><body><div class='container'><h1>Todo App</h1><p class='subtitle'>100% HyperianLang + Electron</p><div class='card'><form class='add-form' method='POST' action='/add'><input type='text' name='title' placeholder='What needs to be done?' required><button type='submit'>Add</button></form><ul class='todo-list'>" + todoItems + "</ul></div><p class='app-info'>" + appName + " v" + version + " — Powered by HyperianLang</p></div></body></html>"
-  
-  return html
-end
-
-# Main page - renders todo list
+# Main page - renders todo list with IndexedDB CRUD
 when the server receives a "GET" request to "/" then
-  call function renderPage into pageHtml
-  send html pageHtml
+  html page
+    html head
+      html title "HyperianLang Todo App"
+      # styles using CSS DSL
+      css rule "*"
+        use margin to "0"
+        use padding to "0"
+        use boxsizing to "border-box"
+      end rule
+      css rule "body"
+        use fontfamily to "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        use background to "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+        use minheight to "100vh"
+        use padding to "40px"
+      end rule
+      css class "container"
+        use maxwidth to "600px"
+        use margin to "0 auto"
+      end rule
+      css rule "h1"
+        use color to "white"
+        use textalign to "center"
+        use marginbottom to "10px"
+        use fontsize to "2.5em"
+        use textshadow to "2px 2px 4px rgba(0,0,0,0.2)"
+      end rule
+      css class "subtitle"
+        use color to "rgba(255,255,255,0.8)"
+        use textalign to "center"
+        use marginbottom to "30px"
+      end rule
+      css class "card"
+        use background to "white"
+        use borderradius to "16px"
+        use padding to "30px"
+        use boxshadow to "0 20px 60px rgba(0,0,0,0.3)"
+      end rule
+      css class "add-form"
+        use display to "flex"
+        use gap to "10px"
+        use marginbottom to "20px"
+      end rule
+      css rule "input[type='text']"
+        use flex to "1"
+        use padding to "15px"
+        use border to "2px solid #e0e0e0"
+        use borderradius to "8px"
+        use fontsize to "16px"
+      end rule
+      css rule "input[type='text']:focus"
+        use outline to "none"
+        use bordercolor to "#667eea"
+      end rule
+      css rule "button"
+        use padding to "15px 25px"
+        use background to "#667eea"
+        use color to "white"
+        use border to "none"
+        use borderradius to "8px"
+        use fontsize to "16px"
+        use cursor to "pointer"
+        use transition to "all 0.2s ease"
+      end rule
+      css rule "button:hover"
+        use background to "#5a6fd6"
+        use transform to "translateY(-1px)"
+      end rule
+      css class "todo-list"
+        use liststyle to "none"
+      end rule
+      css class "todo-item"
+        use display to "flex"
+        use alignitems to "center"
+        use padding to "15px"
+        use borderbottom to "1px solid #eee"
+        use transition to "background 0.2s ease"
+      end rule
+      css rule ".todo-item:hover"
+        use background to "#f8f9fa"
+      end rule
+      css rule ".todo-item.done .todo-text"
+        use textdecoration to "line-through"
+        use color to "#999"
+      end rule
+      css class "todo-checkbox"
+        use width to "28px"
+        use height to "28px"
+        use border to "2px solid #ddd"
+        use borderradius to "50%"
+        use marginright to "15px"
+        use cursor to "pointer"
+        use display to "flex"
+        use alignitems to "center"
+        use justifycontent to "center"
+        use padding to "0"
+        use background to "white"
+        use fontsize to "14px"
+        use transition to "all 0.2s ease"
+      end rule
+      css rule ".todo-checkbox:hover"
+        use bordercolor to "#667eea"
+        use background to "#f0f0ff"
+      end rule
+      css rule ".todo-item.done .todo-checkbox"
+        use background to "#10b981"
+        use bordercolor to "#10b981"
+        use color to "white"
+        use boxshadow to "inset 0 0 0 10px #10b981"
+      end rule
+      css class "todo-text"
+        use flex to "1"
+        use fontsize to "16px"
+      end rule
+      css class "delete-btn"
+        use background to "#ff4444"
+        use border to "none"
+        use fontsize to "14px"
+        use cursor to "pointer"
+        use padding to "6px 12px"
+        use color to "white"
+        use borderradius to "6px"
+        use transition to "all 0.2s ease"
+      end rule
+      css rule ".delete-btn:hover"
+        use background to "#cc0000"
+      end rule
+      css class "empty"
+        use textalign to "center"
+        use color to "#999"
+        use padding to "40px"
+      end rule
+      css class "app-info"
+        use textalign to "center"
+        use margintop to "20px"
+        use color to "rgba(255,255,255,0.7)"
+        use fontsize to "14px"
+      end rule
+      css class "stats"
+        use display to "flex"
+        use justifycontent to "space-between"
+        use padding to "15px"
+        use background to "#f8f9fa"
+        use borderradius to "8px"
+        use marginbottom to "20px"
+        use fontsize to "14px"
+        use color to "#666"
+      end rule
+    end head
+    html body
+      html div with class "container"
+        html heading 1 "Todo App"
+        html paragraph "IndexedDB + HyperianLang + Electron" with class "subtitle"
+        html div with class "card"
+          html div with class "stats" and id "stats"
+            html span "Loading..."
+          end div
+          html form with class "add-form" and id "add-form"
+            html input with type "text" and id "todo-input" and placeholder "What needs to be done?" and required
+            html button "Add" with type "submit"
+          end form
+          html ul with id "todo-list" and class "todo-list"
+            html li "Loading..." with class "empty"
+          end ul
+        end div
+        set infoText to appName joined with " v" joined with version joined with " — Powered by HyperianLang"
+        html paragraph infoText with class "app-info"
+      end div
+      html script block
+        # IndexedDB-powered CRUD logic
+        # db stored as window.todoDb to share across functions
+        
+        define async function initDb
+          open database "TodoApp" with store "todos" and version 1 into conn
+          return conn
+        end function
+        
+        define async function getAllTodos with dbConn
+          get all from database dbConn into items
+          return items
+        end function
+        
+        define async function insertTodo with dbConn and item
+          add to database dbConn with value item
+        end function
+        
+        define async function updateTodoItem with dbConn and item
+          update database dbConn with key item property id and value item
+        end function
+        
+        define async function deleteTodoItem with dbConn and itemId
+          delete from database dbConn with key itemId
+        end function
+        
+        define async function renderList with dbConn
+          select "#todo-list" into listEl
+          select "#stats" into statsEl
+          try
+            call getAllTodos with dbConn into todos
+            set totalCount to todos property length
+            set doneCount to 0
+            
+            for each t in todos do
+              if t property done equals true then
+                set doneCount to doneCount + 1
+              end if
+            end for
+            
+            set statsHtml to "<span>Total: " joined with totalCount joined with "</span><span>Completed: " joined with doneCount joined with "</span>"
+            set statsEl html to statsHtml
+            
+            set htmlContent to ""
+            if totalCount equals 0 then
+              set htmlContent to "<li class='empty'>No todos yet. Add one above!</li>"
+              set listEl html to htmlContent
+            else
+              set listEl html to ""
+              for each todo in todos do
+                set todoId to todo property id
+                set todoTitle to todo property title
+                set todoDone to todo property done
+                if todoDone equals true then
+                  set itemClass to "todo-item done"
+                else
+                  set itemClass to "todo-item"
+                end if
+                
+                # Create elements using native HyperianLang
+                create list item into li
+                set li class to itemClass
+                
+                create button into checkbox
+                set checkbox class to "todo-checkbox"
+                set toggleStr to "handleToggle(" joined with todoId joined with ")"
+                set checkbox attribute "onclick" to toggleStr
+                
+                create span todoTitle into textSpan
+                set textSpan class to "todo-text"
+                
+                create button "Delete" into deleteBtn
+                set deleteBtn class to "delete-btn"
+                set deleteStr to "handleDelete(" joined with todoId joined with ")"
+                set deleteBtn attribute "onclick" to deleteStr
+                
+                # Build the list item
+                append checkbox to li
+                append textSpan to li
+                append deleteBtn to li
+                append li to listEl
+              end for
+            end if
+          catch error
+            log error
+          end try
+        end function
+        
+        # Main app function - initializes db and sets up handlers
+        define async function main
+          call initDb into db
+          log "IndexedDB ready"
+          
+          # Create closure-based handlers
+          define async function handleAdd with title
+            the date is now into newId
+            set newItem to { id: newId, title: title, done: false }
+            call insertTodo with db and newItem
+            call renderList with db
+          end function
+          
+          define async function handleToggle with id
+            call getAllTodos with db into todos
+            for each todo in todos do
+              if todo property id equals id then
+                if todo property done equals true then
+                  set updated to { id: id, title: todo property title, done: false }
+                else
+                  set updated to { id: id, title: todo property title, done: true }
+                end if
+                call updateTodoItem with db and updated
+              end if
+            end for
+            call renderList with db
+          end function
+          
+          define async function handleDelete with id
+            call deleteTodoItem with db and id
+            call renderList with db
+          end function
+          
+          # Expose handlers globally
+          set window property handleAdd to handleAdd
+          set window property handleToggle to handleToggle
+          set window property handleDelete to handleDelete
+          
+          # Initial render
+          call renderList with db
+        end function
+
+        when "#add-form" submitted then
+          prevent default
+          select "#todo-input" into inputEl
+          set title to inputEl property value
+          if title not equals "" then
+            call window property handleAdd with title
+            set inputEl value to ""
+          end if
+        end when
+
+        when page loaded then
+          call main
+        end when
+      end script
+    end body
+  end page
 end
 
-# Add a new todo
-when the server receives a "POST" request to "/add" then
-  set body to get the body from request
-  set title to get title from body
-  set newTodo to { id: nextId, title: title, done: false }
-  append newTodo to todos
-  increase nextId by 1
-  log "Added todo: " + title
-  # Redirect back to main page
-  send html "<html><head><meta http-equiv='refresh' content='0;url=/'></head></html>"
-end
-
-# Toggle a todo
-when the server receives a "POST" request to "/toggle/:id" then
-  set parameters to get the parameters from request
-  set todoId to get id from parameters
-  log "Toggling todo: " + todoId
-  # Redirect back to main page
-  send html "<html><head><meta http-equiv='refresh' content='0;url=/'></head></html>"
-end
-
-# API for app info (optional)
+# API for app info
 when the server receives a "GET" request to "/api/info" then
-  respond with { name: appName, version: version, language: "HyperianLang" }
+  respond with { name: appName, version: version, language: "HyperianLang", storage: "IndexedDB" }
 end
 
-log "All routes defined in HyperianLang!"
+log "All routes defined in HyperianLang with IndexedDB!"
 log "Starting server..."
 
 # Start the server
-start the server on port 3000
+start the server on port 3001

@@ -834,7 +834,8 @@ class HLParser {
     if (tok.type === 'IDENT' || tok.type === 'PREP' || tok.type === 'ACTION' || tok.type === 'KEYWORD') {
       const PRIM_STOP = new Set(['then', 'end', 'else', 'do', 'into', 'and', 'or', 
                                   'is', 'has', 'be', 'to', 'by', 'at', 'from', 'with', 'on', 'of', 'in', 'as',
-                                  'times', 'seconds', 'while', 'for', 'if', 'repeat']);
+                                  'times', 'seconds', 'while', 'for', 'if', 'repeat',
+                                  'joined', 'concatenated', 'plus', 'minus', 'multiplied', 'divided']);
       // Statement-starting actions that should not be consumed as variable name parts
       const STMT_ACTIONS = new Set([
         'let', 'set', 'increase', 'decrease', 'move', 'play', 'stop', 'spawn',
@@ -1059,6 +1060,11 @@ class HLParser {
         if (word === 'divided' && this._is('by')) this._next(); // "divided by"
         const op = MATH_WORDS[word];
         left = { type: 'math', op, left, right: this._parsePrimary() };
+      } else if (this._is('joined') || this._is('concatenated')) {
+        // String concatenation: "text" joined with value
+        this._next(); // consume 'joined' or 'concatenated'
+        if (this._is('with') || this._is('to')) this._next();
+        left = { type: 'concat', left, right: this._parsePrimary() };
       } else {
         break;
       }
@@ -1220,6 +1226,7 @@ class HLParser {
         if (this._peek(1)?.value === 'table' || (this._peek(1)?.value === 'a' && this._peek(2)?.value === 'table')) return this._parseCreateTable();
         return this._parseCreateFolder();
       case 'send':      if (this._peek(1)?.value === 'response' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the' || this._peek(1)?.value === 'file' || this._peek(1)?.value === 'html' || this._peek(1)?.value === 'css') return this._parseSendResponse(); return null;
+      case 'redirect':  return this._parseRedirect();
       case 'when':      if (this._peek(1)?.value === 'receiving' || this._peek(1)?.value === 'the' || this._peek(1)?.value === 'server') return this._parseWhenReceiving(); return null;
       // legacy server ops
       case 'serve':     if (this._peek(1)?.value === 'file' || this._peek(1)?.value === 'the') return this._parseServeFile(); return this._parseServe();
@@ -1501,7 +1508,14 @@ class HLParser {
     if (this._is('else') || this._is('otherwise')) {
       this._next();
       if (this._is('if')) { alternate = [this._parseIf()]; }
-      else { alternate = this._parseBody(['end']); if (this._is('end')) this._consume('end'); }
+      else { 
+        alternate = this._parseBody(['end']); 
+        if (this._is('end')) {
+          this._consume('end');
+          // Consume optional 'if' after 'end'
+          if (this._is('if')) this._next();
+        }
+      }
     } else if (this._is('end')) { 
       this._consume('end'); 
       // Consume optional 'if' after 'end'
@@ -2475,7 +2489,11 @@ class HLParser {
     const iterable = this._consumeIdent();
     if (this._is('do') || this._is('then')) this._next();
     const body = this._parseBody(['end']);
-    if (this._is('end')) this._consume('end');
+    if (this._is('end')) {
+      this._consume('end');
+      // consume optional 'for' after 'end'
+      if (this._is('for')) this._next();
+    }
     return { type: 'forEach', varName, iterable, body };
   }
 
@@ -3354,6 +3372,22 @@ class HLParser {
       body = this._parseValue();
     }
     return { type: 'respond', status, body };
+  }
+
+  // English: redirect to "/path"
+  _parseRedirect() {
+    this._consume('redirect');
+    if (this._is('to')) this._next();
+    if (this._is('the')) this._next();
+    if (this._is('user')) this._next();
+    const url = this._parseValue();
+    let status = { type: 'number', value: 302 };
+    if (this._is('with')) {
+      this._next();
+      if (this._is('status')) this._next();
+      status = this._parseValue();
+    }
+    return { type: 'redirect', url, status };
   }
 
   _parseScreenFx(kind) {
@@ -6604,6 +6638,62 @@ class HLParser {
     // Skip comments
     if (tok.type === 'COMMENT') { this._next(); return null; }
     
+    // create element "tagName" into varName / create list item into varName / create button "text" into varName
+    if (this._is('create') && (this._peek(1)?.value === 'element' || this._peek(1)?.value === 'list' || this._peek(1)?.value === 'button' || this._peek(1)?.value === 'span' || this._peek(1)?.value === 'paragraph' || this._peek(1)?.value === 'div')) {
+      this._next(); // create
+      let tagName = null;
+      let textContent = null;
+      
+      if (this._is('element')) {
+        this._next(); // element
+        tagName = this._parseValue().value;
+      } else if (this._is('list')) {
+        this._next(); // list
+        if (this._is('item')) this._next();
+        tagName = 'li';
+      } else if (this._is('button')) {
+        this._next(); // button
+        tagName = 'button';
+        // Check for text content (string or variable) before "into"
+        if (this._peek() && !this._is('into') && !this._is('as')) {
+          textContent = this._parseClientValue();
+        }
+      } else if (this._is('span')) {
+        this._next();
+        tagName = 'span';
+        // Check for text content (string or variable) before "into"
+        if (this._peek() && !this._is('into') && !this._is('as')) {
+          textContent = this._parseClientValue();
+        }
+      } else if (this._is('paragraph')) {
+        this._next();
+        tagName = 'p';
+        // Check for text content (string or variable) before "into"
+        if (this._peek() && !this._is('into') && !this._is('as')) {
+          textContent = this._parseClientValue();
+        }
+      } else if (this._is('div')) {
+        this._next();
+        tagName = 'div';
+      }
+      
+      let out = null;
+      if (this._is('into') || this._is('as')) {
+        this._next();
+        out = this._consumeIdent();
+      }
+      return { type: 'clientCreateElement', tagName, textContent, out };
+    }
+    
+    // append ELEMENT to PARENT / add ELEMENT to PARENT
+    if ((this._is('append') || this._is('add')) && this._peek(2)?.value === 'to') {
+      this._next(); // append/add
+      const element = this._consumeIdent();
+      this._next(); // to
+      const parent = this._consumeIdent();
+      return { type: 'clientAppendElement', element, parent };
+    }
+    
     // define function NAME ... end function
     // define async function NAME ... end function
     if (this._is('define') || this._is('function') || this._is('create')) {
@@ -6677,10 +6767,56 @@ class HLParser {
       return { type: 'clientEvent', target, event, body };
     }
     
-    // set VARIABLE to VALUE / set ELEMENT property to VALUE
+    // "the date is now" / "the timestamp is now" - get current timestamp
+    if (this._is('the') && this._peek(1)?.value === 'date' && this._peek(2)?.value === 'is' && this._peek(3)?.value === 'now') {
+      this._next(); // the
+      this._next(); // date
+      this._next(); // is
+      this._next(); // now
+      if (this._is('into') || this._is('as')) this._next();
+      const out = this._consumeIdent();
+      return { type: 'clientGetTimestamp', out };
+    }
+    if (this._is('the') && this._peek(1)?.value === 'timestamp' && this._peek(2)?.value === 'is' && this._peek(3)?.value === 'now') {
+      this._next(); // the
+      this._next(); // timestamp
+      this._next(); // is
+      this._next(); // now
+      if (this._is('into') || this._is('as')) this._next();
+      const out = this._consumeIdent();
+      return { type: 'clientGetTimestamp', out };
+    }
+    
+    // set VARIABLE to VALUE / set ELEMENT property to VALUE / set window property NAME to VALUE
     if (this._is('set')) {
       this._next();
       const target = this._consumeIdent();
+      
+      // Handle "set window property NAME to VALUE" pattern for global variable assignment
+      if (target === 'window' && this._is('property')) {
+        this._next(); // skip 'property'
+        const propName = this._consumeIdent();
+        if (this._is('to')) this._next();
+        const value = this._parseClientValue();
+        return { type: 'clientSetWindowProp', propName, value };
+      }
+      
+      // set element attribute "name" to "value"
+      if (this._is('attribute') || this._is('attr')) {
+        this._next(); // attribute
+        const attrName = this._parseValue().value;
+        if (this._is('to')) this._next();
+        const value = this._parseClientValue();
+        return { type: 'clientSetAttribute', target, attrName, value };
+      }
+      
+      // set element class to "value"
+      if (this._is('class')) {
+        this._next(); // class
+        if (this._is('to')) this._next();
+        const value = this._parseClientValue();
+        return { type: 'clientSetClass', target, value };
+      }
       
       // set element text/html/display/value
       if (this._is('text') || this._is('html') || this._is('display') || this._is('value') || this._is('content')) {
@@ -6698,6 +6834,40 @@ class HLParser {
     // get value of SELECTOR into VAR - get form field value
     if (this._is('get')) {
       this._next();
+      
+      // IndexedDB: get all from database VAR into VAR (must check before consuming 'all')
+      if (this._is('all') && this._peek(1)?.value === 'from' && (this._peek(2)?.value === 'database' || this._peek(2)?.value === 'db')) {
+        this._next(); // all
+        this._next(); // from
+        this._next(); // database
+        const dbVar = this._consumeIdent();
+        let out = null;
+        if (this._is('into') || this._is('as')) {
+          this._next();
+          out = this._consumeIdent();
+        }
+        return { type: 'clientDbGetAll', dbVar, out };
+      }
+      
+      // IndexedDB: get from database VAR with key KEY into VAR
+      if (this._is('from') && (this._peek(1)?.value === 'database' || this._peek(1)?.value === 'db')) {
+        this._next(); // from
+        this._next(); // database
+        const dbVar = this._consumeIdent();
+        let key = null;
+        if (this._is('with') || this._is('key')) {
+          if (this._is('with')) this._next();
+          if (this._is('key')) this._next();
+          key = this._parseClientValue();
+        }
+        let out = null;
+        if (this._is('into') || this._is('as')) {
+          this._next();
+          out = this._consumeIdent();
+        }
+        return { type: 'clientDbGet', dbVar, key, out };
+      }
+      
       if (this._is('value') || this._is('the')) {
         if (this._is('the')) this._next();
         if (this._is('value')) this._next();
@@ -6798,11 +6968,21 @@ class HLParser {
       return { type: 'clientShow', target };
     }
     
-    // call FUNCTION / call FUNCTION with ARGS
+    // call FUNCTION / call FUNCTION with ARGS / call FUNCTION into VAR
     if (this._is('call') || this._is('run') || this._is('execute')) {
       this._next();
       if (this._is('function')) this._next();
-      const name = this._consumeIdent();
+      let name = this._consumeIdent();
+      // Handle property access: call window property handleAdd / call obj.method
+      while (this._is('property') || this._peek()?.value === '.') {
+        if (this._peek()?.value === '.') {
+          this._next();
+          name += '.' + this._consumeIdent();
+        } else {
+          this._next(); // skip 'property'
+          name += '.' + this._consumeIdent();
+        }
+      }
       const args = [];
       if (this._is('with') || this._is('using') || this._is('passing')) {
         this._next();
@@ -6812,7 +6992,12 @@ class HLParser {
           args.push(this._parseClientValue());
         }
       }
-      return { type: 'clientCall', name, args };
+      let out = null;
+      if (this._is('into') || this._is('as')) {
+        this._next();
+        out = this._consumeIdent();
+      }
+      return { type: 'clientCall', name, args, out };
     }
     
     // fetch URL into VAR
@@ -6874,9 +7059,24 @@ class HLParser {
     }
     
     // localStorage: remove from storage KEY / delete from storage KEY
+    // Also IndexedDB: delete from database VAR with key KEY
     if (this._is('remove') || this._is('delete') || this._is('clear')) {
       this._next();
       if (this._is('from')) this._next();
+      
+      // IndexedDB: delete from database VAR with key KEY
+      if (this._is('database') || this._is('db')) {
+        this._next();
+        const dbVar = this._consumeIdent();
+        let key = null;
+        if (this._is('with') || this._is('key')) {
+          if (this._is('with')) this._next();
+          if (this._is('key')) this._next();
+          key = this._parseClientValue();
+        }
+        return { type: 'clientDbDelete', dbVar, key };
+      }
+      
       if (this._is('storage') || this._is('local')) {
         this._next();
         if (this._is('storage')) this._next();
@@ -6932,24 +7132,20 @@ class HLParser {
       return { type: 'clientDbAdd', dbVar, key, value };
     }
     
-    // IndexedDB: get from database VAR with key KEY into VAR
-    if (this._is('get') && this._peek(1)?.value === 'from' && (this._peek(2)?.value === 'database' || this._peek(2)?.value === 'db')) {
-      this._next(); // get
-      this._next(); // from
+    // IndexedDB: update database VAR with key KEY and value VALUE
+    if (this._is('update') && (this._peek(1)?.value === 'database' || this._peek(1)?.value === 'db')) {
+      this._next(); // update
       this._next(); // database
       const dbVar = this._consumeIdent();
       let key = null;
-      if (this._is('with') || this._is('key')) {
-        if (this._is('with')) this._next();
-        if (this._is('key')) this._next();
-        key = this._parseClientValue();
-      }
-      let out = null;
-      if (this._is('into') || this._is('as')) {
+      let value = null;
+      if (this._is('with')) {
         this._next();
-        out = this._consumeIdent();
+        if (this._is('key')) { this._next(); key = this._parseClientValue(); }
+        if (this._is('and')) this._next();
+        if (this._is('value') || this._is('data')) { this._next(); value = this._parseClientValue(); }
       }
-      return { type: 'clientDbGet', dbVar, key, out };
+      return { type: 'clientDbUpdate', dbVar, key, value };
     }
     
     // for each ITEM in COLLECTION ... end for
@@ -6986,6 +7182,7 @@ class HLParser {
       } else if (this._is('not')) {
         this._next();
         op = 'notEquals';
+        if (this._is('equals') || this._is('equal') || this._is('==')) this._next();
         right = this._parseClientValue();
       } else if (this._is('then')) {
         // No comparison operator, treat as truthy check
@@ -7139,7 +7336,11 @@ class HLParser {
       return { type: 'number', value: this._next().value };
     }
     
-    // Boolean
+    // Boolean - handle both BOOLEAN token type and keywords 'true'/'false'/'yes'/'no'
+    if (tok.type === 'BOOLEAN') {
+      this._next();
+      return { type: 'boolean', value: tok.value };
+    }
     if (this._is('true') || this._is('yes')) {
       this._next();
       return { type: 'boolean', value: true };
@@ -8094,6 +8295,12 @@ class HLInterpreter {
         case '/': return Number(r) !== 0 ? Number(l) / Number(r) : 0;
         case '%': return Number(l) % Number(r);
       }
+    }
+    // String concatenation: "text" joined with value
+    if (valNode.type === 'concat') {
+      const l = this._resolveValue(valNode.left);
+      const r = this._resolveValue(valNode.right);
+      return String(l) + String(r);
     }
     // Function expressions (math, string, array ops)
     if (valNode.type === 'funcExpr') {
@@ -9328,12 +9535,30 @@ class HLInterpreter {
               let body = '';
               req.on('data', chunk => body += chunk);
               req.on('end', async () => {
+                // Parse body - try JSON first, then URL-encoded, then raw
+                let parsedBody = {};
+                if (body) {
+                  try {
+                    parsedBody = JSON.parse(body);
+                  } catch (e) {
+                    // Try URL-encoded (form data)
+                    if (body.includes('=')) {
+                      parsedBody = Object.fromEntries(body.split('&').map(p => {
+                        const [k, v] = p.split('=');
+                        return [decodeURIComponent(k), decodeURIComponent(v || '')];
+                      }));
+                    } else {
+                      parsedBody = { raw: body };
+                    }
+                  }
+                }
+                
                 // Set up request object
                 const reqObj = {
                   method: method,
                   url: url,
                   headers: req.headers,
-                  body: body ? JSON.parse(body) : {},
+                  body: parsedBody,
                   query: Object.fromEntries(new URL(req.url, `http://localhost:${_port}`).searchParams),
                   parameters: extractedParams
                 };
@@ -9431,6 +9656,18 @@ class HLInterpreter {
           this._currentResponse.end(body);
           this._currentResponse = null;
           // Mark response as sent
+          if (w) w._responseSent = true;
+        }
+        break;
+      }
+
+      case 'redirect': {
+        if (this._currentResponse) {
+          const url = this._resolveValue(stmt.url);
+          const status = this._resolveValue(stmt.status) || 302;
+          this._currentResponse.writeHead(status, { 'Location': url });
+          this._currentResponse.end();
+          this._currentResponse = null;
           if (w) w._responseSent = true;
         }
         break;
@@ -13017,6 +13254,24 @@ class HLInterpreter {
           break;
         }
         
+        case 'clientSetWindowProp': {
+          const value = this._generateClientValue(stmt.value);
+          lines.push(`${pad}window.${stmt.propName} = ${value};`);
+          break;
+        }
+        
+        case 'clientGetTimestamp': {
+          if (stmt.out) {
+            if (localVars.has(stmt.out)) {
+              lines.push(`${pad}${stmt.out} = Date.now();`);
+            } else {
+              localVars.add(stmt.out);
+              lines.push(`${pad}let ${stmt.out} = Date.now();`);
+            }
+          }
+          break;
+        }
+        
         case 'clientSetProp': {
           const value = this._generateClientValue(stmt.value);
           const propMap = {
@@ -13028,6 +13283,40 @@ class HLInterpreter {
           };
           const jsProp = propMap[stmt.prop] || stmt.prop;
           lines.push(`${pad}${stmt.target}.${jsProp} = ${value};`);
+          break;
+        }
+        
+        case 'clientCreateElement': {
+          const tagName = stmt.tagName;
+          if (stmt.out) {
+            if (localVars.has(stmt.out)) {
+              lines.push(`${pad}${stmt.out} = document.createElement('${tagName}');`);
+            } else {
+              localVars.add(stmt.out);
+              lines.push(`${pad}let ${stmt.out} = document.createElement('${tagName}');`);
+            }
+            if (stmt.textContent) {
+              const textValue = this._generateClientValue(stmt.textContent);
+              lines.push(`${pad}${stmt.out}.textContent = ${textValue};`);
+            }
+          }
+          break;
+        }
+        
+        case 'clientAppendElement': {
+          lines.push(`${pad}${stmt.parent}.appendChild(${stmt.element});`);
+          break;
+        }
+        
+        case 'clientSetAttribute': {
+          const value = this._generateClientValue(stmt.value);
+          lines.push(`${pad}${stmt.target}.setAttribute('${stmt.attrName}', ${value});`);
+          break;
+        }
+        
+        case 'clientSetClass': {
+          const value = this._generateClientValue(stmt.value);
+          lines.push(`${pad}${stmt.target}.className = ${value};`);
           break;
         }
         
@@ -13091,7 +13380,14 @@ class HLInterpreter {
         
         case 'clientCall': {
           const args = stmt.args.map(a => this._generateClientValue(a)).join(', ');
-          lines.push(`${pad}${stmt.name}(${args});`);
+          if (stmt.out) {
+            const isNewVar = !localVars.has(stmt.out);
+            localVars.add(stmt.out);
+            const decl = isNewVar ? 'let ' : '';
+            lines.push(`${pad}${decl}${stmt.out} = await ${stmt.name}(${args});`);
+          } else {
+            lines.push(`${pad}${stmt.name}(${args});`);
+          }
           break;
         }
         
@@ -13150,11 +13446,13 @@ class HLInterpreter {
           const dbName = this._generateClientValue(stmt.dbName);
           const storeName = stmt.storeName ? this._generateClientValue(stmt.storeName) : "'data'";
           const version = stmt.version ? this._generateClientValue(stmt.version) : '1';
+          const varName = stmt.out || '_db';
+          const isNewVar = !localVars.has(varName);
           if (stmt.out) {
             localVars.add(stmt.out);
           }
-          const varName = stmt.out || '_db';
-          lines.push(`${pad}let ${varName} = await new Promise((resolve, reject) => {`);
+          const decl = isNewVar ? 'let ' : '';
+          lines.push(`${pad}${decl}${varName} = await new Promise((resolve, reject) => {`);
           lines.push(`${pad}  const request = indexedDB.open(${dbName}, ${version});`);
           lines.push(`${pad}  request.onerror = () => reject(request.error);`);
           lines.push(`${pad}  request.onsuccess = () => resolve({ db: request.result, store: ${storeName} });`);
@@ -13187,14 +13485,62 @@ class HLInterpreter {
         
         case 'clientDbGet': {
           const key = this._generateClientValue(stmt.key);
+          const varName = stmt.out || '_dbResult';
+          const isNewVar = !localVars.has(varName);
           if (stmt.out) {
             localVars.add(stmt.out);
           }
-          const varName = stmt.out || '_dbResult';
-          lines.push(`${pad}let ${varName} = await new Promise((resolve, reject) => {`);
+          const decl = isNewVar ? 'let ' : '';
+          lines.push(`${pad}${decl}${varName} = await new Promise((resolve, reject) => {`);
           lines.push(`${pad}  const tx = ${stmt.dbVar}.db.transaction(${stmt.dbVar}.store, 'readonly');`);
           lines.push(`${pad}  const store = tx.objectStore(${stmt.dbVar}.store);`);
           lines.push(`${pad}  const request = store.get(${key});`);
+          lines.push(`${pad}  request.onsuccess = () => resolve(request.result);`);
+          lines.push(`${pad}  request.onerror = () => reject(request.error);`);
+          lines.push(`${pad}});`);
+          break;
+        }
+        
+        case 'clientDbGetAll': {
+          const varName = stmt.out || '_dbResults';
+          const isNewVar = !localVars.has(varName);
+          if (stmt.out) {
+            localVars.add(stmt.out);
+          }
+          const decl = isNewVar ? 'let ' : '';
+          lines.push(`${pad}${decl}${varName} = await new Promise((resolve, reject) => {`);
+          lines.push(`${pad}  const tx = ${stmt.dbVar}.db.transaction(${stmt.dbVar}.store, 'readonly');`);
+          lines.push(`${pad}  const store = tx.objectStore(${stmt.dbVar}.store);`);
+          lines.push(`${pad}  const request = store.getAll();`);
+          lines.push(`${pad}  request.onsuccess = () => resolve(request.result || []);`);
+          lines.push(`${pad}  request.onerror = () => reject(request.error);`);
+          lines.push(`${pad}});`);
+          break;
+        }
+        
+        case 'clientDbDelete': {
+          const key = this._generateClientValue(stmt.key);
+          lines.push(`${pad}await new Promise((resolve, reject) => {`);
+          lines.push(`${pad}  const tx = ${stmt.dbVar}.db.transaction(${stmt.dbVar}.store, 'readwrite');`);
+          lines.push(`${pad}  const store = tx.objectStore(${stmt.dbVar}.store);`);
+          lines.push(`${pad}  const request = store.delete(${key});`);
+          lines.push(`${pad}  request.onsuccess = () => resolve();`);
+          lines.push(`${pad}  request.onerror = () => reject(request.error);`);
+          lines.push(`${pad}});`);
+          break;
+        }
+        
+        case 'clientDbUpdate': {
+          const key = stmt.key ? this._generateClientValue(stmt.key) : 'undefined';
+          const value = this._generateClientValue(stmt.value);
+          lines.push(`${pad}await new Promise((resolve, reject) => {`);
+          lines.push(`${pad}  const tx = ${stmt.dbVar}.db.transaction(${stmt.dbVar}.store, 'readwrite');`);
+          lines.push(`${pad}  const store = tx.objectStore(${stmt.dbVar}.store);`);
+          lines.push(`${pad}  const data = ${value};`);
+          if (stmt.key) {
+            lines.push(`${pad}  data.id = ${key};`);
+          }
+          lines.push(`${pad}  const request = store.put(data);`);
           lines.push(`${pad}  request.onsuccess = () => resolve(request.result);`);
           lines.push(`${pad}  request.onerror = () => reject(request.error);`);
           lines.push(`${pad}});`);
@@ -13214,6 +13560,18 @@ class HLInterpreter {
         
         case 'clientIf': {
           const left = this._generateClientValue(stmt.left);
+          
+          // Pre-declare variables that are set in both if and else branches
+          // to avoid block-scoping issues
+          const ifVars = this._collectClientVars(stmt.body);
+          const elseVars = stmt.elseBody ? this._collectClientVars(stmt.elseBody) : new Set();
+          for (const v of ifVars) {
+            if (elseVars.has(v) && !localVars.has(v)) {
+              lines.push(`${pad}let ${v};`);
+              localVars.add(v);
+            }
+          }
+          
           if (stmt.op === 'truthy') {
             // Truthy check - just test if value exists/is truthy
             lines.push(`${pad}if (${left}) {`);
@@ -13298,6 +13656,25 @@ class HLInterpreter {
     return lines.join('\n');
   }
   
+  // Collect variable names that are set in a statement body
+  _collectClientVars(body) {
+    const vars = new Set();
+    for (const stmt of body) {
+      if (stmt.type === 'clientSetVar') {
+        vars.add(stmt.name);
+      } else if (stmt.type === 'clientIf') {
+        // Recursively check nested if/else
+        for (const v of this._collectClientVars(stmt.body)) vars.add(v);
+        if (stmt.elseBody) {
+          for (const v of this._collectClientVars(stmt.elseBody)) vars.add(v);
+        }
+      } else if (stmt.type === 'clientForEach') {
+        for (const v of this._collectClientVars(stmt.body)) vars.add(v);
+      }
+    }
+    return vars;
+  }
+  
   // Client JS Generator: Convert a value node to JavaScript expression
   _generateClientValue(valueNode) {
     if (!valueNode) return 'null';
@@ -13318,7 +13695,7 @@ class HLInterpreter {
       case 'boolean':
         return String(valueNode.value);
       case 'variable':
-        return valueNode.name;
+        return this._fixJsGlobal(valueNode.name);
       case 'object': {
         const props = valueNode.props.map(p => `${p.key}: ${this._generateClientValue(p.value)}`).join(', ');
         return `{${props}}`;
@@ -13331,6 +13708,24 @@ class HLInterpreter {
       default:
         return 'null';
     }
+  }
+  
+  // Fix JavaScript global object capitalization (date → Date, math → Math, etc.)
+  _fixJsGlobal(name) {
+    const JS_GLOBALS = {
+      'date': 'Date', 'math': 'Math', 'json': 'JSON', 'array': 'Array',
+      'object': 'Object', 'string': 'String', 'number': 'Number', 'boolean': 'Boolean',
+      'regexp': 'RegExp', 'promise': 'Promise', 'map': 'Map',
+      'set': 'Set', 'weakmap': 'WeakMap', 'weakset': 'WeakSet', 'symbol': 'Symbol',
+      'proxy': 'Proxy', 'reflect': 'Reflect', 'intl': 'Intl', 'url': 'URL',
+      'nan': 'NaN', 'infinity': 'Infinity'
+    };
+    // Handle property chains like date.now → Date.now
+    const parts = name.split('.');
+    if (parts.length > 0 && JS_GLOBALS[parts[0].toLowerCase()]) {
+      parts[0] = JS_GLOBALS[parts[0].toLowerCase()];
+    }
+    return parts.join('.');
   }
   
   // HTML Helper: Escape HTML special characters
