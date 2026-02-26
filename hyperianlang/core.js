@@ -856,6 +856,8 @@ class HLParser {
         'html', 'render',
       ]);
       const SKIP_ARTICLES = new Set(['the', 'a', 'an', 'this', 'that']);
+      // Control-flow keywords that should always break variable name parsing
+      const CTRL_KEYWORDS = new Set(['then', 'end', 'else', 'do', 'if', 'while', 'for', 'repeat', 'return', 'break', 'skip', 'try', 'catch', 'finally', 'on']);
       const words = [];
       while (this.pos < this.tokens.length) {
         const t = this._peek();
@@ -863,10 +865,12 @@ class HLParser {
         if (t.type === 'OPERATOR' || t.type === 'COMPARISON' || t.type === 'ASSIGN') break;
         if (t.type === 'NUMBER' || t.type === 'STRING' || t.type === 'BOOLEAN') break;
         if (PRIM_STOP.has(t.value)) break;
-        if (t.type === 'KEYWORD') break; // Stop on ANY keyword
+        // Stop on control-flow keywords, or other keywords after first word
+        if (t.type === 'KEYWORD' && (CTRL_KEYWORDS.has(t.value) || words.length > 0)) break;
         // Stop on statement-starting actions (but not after collecting at least one word if that word isn't an action)
         if (words.length > 0 && t.type === 'ACTION' && STMT_ACTIONS.has(t.value)) break;
-        if (t.type !== 'IDENT' && t.type !== 'PREP' && t.type !== 'ACTION') break;
+        // Allow KEYWORD for first word (e.g., variable named 'result'), otherwise only IDENT/PREP/ACTION
+        if (t.type !== 'IDENT' && t.type !== 'PREP' && t.type !== 'ACTION' && !(t.type === 'KEYWORD' && words.length === 0)) break;
         // Skip leading articles only if next is another word
         if (words.length === 0 && SKIP_ARTICLES.has(t.value)) {
           const nx = this._peek(1);
@@ -1153,6 +1157,9 @@ class HLParser {
       case 'write':     return this._parseWriteFile();
       case 'split':     return this._parseSplitStmt();
       case 'replace':   return this._parseReplaceStmt();
+      case 'trim':      return this._parseStringTransform('trim');
+      case 'uppercase': return this._parseStringTransform('uppercase');
+      case 'lowercase': return this._parseStringTransform('lowercase');
       case 'convert':   return this._parseConvert();
       case 'break':     { 
         this._next(); 
@@ -2607,6 +2614,16 @@ class HLParser {
     return { type: 'replaceStr', from: search, to: replacement, inVar: str, variable: out };
   }
 
+  // trim text into result / uppercase text into result / lowercase text into result
+  _parseStringTransform(op) {
+    this._consume(op);
+    const STOP = new Set(['into', 'to', 'then', 'end', 'else']);
+    const src = this._consumeMultiWordName(STOP);
+    let out = null;
+    if (this._is('into') || this._is('to')) { this._next(); out = this._consumeMultiWordName(new Set(['then', 'end', 'else'])); }
+    return { type: 'stringTransform', op, src, out };
+  }
+
   // convert value to number/text/boolean into varName
   _parseConvert() {
     this._consume('convert');
@@ -3201,7 +3218,9 @@ class HLParser {
   _parseLogStmt() {
     this._consume('log');
     const values = [this._parseValue()];
-    while (this._peek() && !this._is('end') && !this._is('then') && !this._is('else') &&
+    // Stop on control flow keywords that may follow log in match/if/loop bodies
+    const LOG_STOP = new Set(['end', 'then', 'else', 'on', 'catch', 'finally']);
+    while (this._peek() && !LOG_STOP.has(this._peek().value) &&
            this._peek().type !== 'KEYWORD' && this._peek().type !== 'ACTION' &&
            (this._peek().type === 'IDENT' || this._peek().type === 'STRING' ||
            this._peek().type === 'NUMBER' || this._peek().type === 'BOOLEAN' || this._peek().type === 'PREP')) {
@@ -11032,6 +11051,20 @@ class HLInterpreter {
         const search = this._resolveValue(stmt.search);
         const replacement = this._resolveValue(stmt.replacement);
         w._vars[stmt.out] = str.replaceAll(search, replacement);
+        break;
+      }
+
+      case 'stringTransform': {
+        if (!w) break;
+        const str = String(w._vars[stmt.src] || '');
+        let result;
+        switch (stmt.op) {
+          case 'trim':      result = str.trim(); break;
+          case 'uppercase': result = str.toUpperCase(); break;
+          case 'lowercase': result = str.toLowerCase(); break;
+          default:          result = str;
+        }
+        if (stmt.out) w._vars[stmt.out] = result;
         break;
       }
 

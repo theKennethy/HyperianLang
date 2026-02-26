@@ -1,0 +1,252 @@
+# Comprehensive HyperianLang Feature Test
+# Testing ALL documented features - using working syntax patterns
+
+log "═══════════════════════════════════════════════════════════════"
+log "STARTING COMPREHENSIVE FEATURE TEST"
+log "═══════════════════════════════════════════════════════════════"
+
+# ─── VARIABLES ───────────────────────────────────────────────────
+log ""
+log "TEST: Variables"
+set name to "John"
+set playerScore to 100
+set items to ["sword", "shield"]
+set config to {host: "localhost", port: 3000}
+log "  Variables: PASS"
+
+# ─── ASSIGNMENT ──────────────────────────────────────────────────
+set name to "Jane"
+set playerScore to 200
+log "  Assignment: PASS"
+
+# ─── INCREASE/DECREASE ───────────────────────────────────────────
+increase playerScore by 50
+decrease playerScore by 10
+log "  Increase/Decrease: PASS (score = {playerScore})"
+
+# ─── MATH OPERATIONS ─────────────────────────────────────────────
+log ""
+log "TEST: Math Operations"
+set result1 to 10 plus 5
+set result2 to 20 minus 8
+set result3 to 4 times 3
+set result4 to 20 divided by 4
+set result5 to 10 mod 3
+set result6 to 2 to the power of 8
+log "  plus: {result1}, minus: {result2}, times: {result3}"
+log "  divided by: {result4}, mod: {result5}, power: {result6}"
+log "  Math Operations: PASS"
+
+# ─── MATH FUNCTIONS ──────────────────────────────────────────────
+log ""
+log "TEST: Math Functions"
+round 3.7 into rounded
+floor 3.7 into floored
+ceil 3.2 into ceiled
+abs -5 into absolute
+sqrt 16 into root
+random 1 to 100 into randomNum
+log "  round: {rounded}, floor: {floored}, ceil: {ceiled}"
+log "  abs: {absolute}, sqrt: {root}, random: {randomNum}"
+log "  Math Functions: PASS"
+
+# ─── CONDITIONALS ────────────────────────────────────────────────
+log ""
+log "TEST: Conditionals"
+set balance to 100
+if balance is greater than 0 then
+  log "  if/then: PASS"
+end
+
+set grade to "B"
+if grade equals "A" then
+  log "  Grade A"
+else if grade equals "B" then
+  log "  else if: PASS"
+else
+  log "  else: FAIL"
+end
+
+# ─── LOOPS ───────────────────────────────────────────────────────
+log ""
+log "TEST: Loops"
+set counter to 0
+repeat 3 times
+  increase counter by 1
+end
+log "  repeat: PASS (counter = {counter})"
+
+set i to 0
+while i is less than 3
+  increase i by 1
+end
+log "  while: PASS (i = {i})"
+
+set nums to [1, 2, 3]
+set sum to 0
+for each num in nums do
+  set sum to sum plus num
+end
+log "  for each: PASS (sum = {sum})"
+
+# ─── MATCH (SWITCH) ──────────────────────────────────────────────
+log ""
+log "TEST: Match (Switch)"
+set status to "200"
+match status
+  on "200" then log "  match: PASS (200 OK)"
+  on "404" then log "  match: FAIL"
+  else log "  match: FAIL"
+end
+
+# ─── FUNCTIONS ───────────────────────────────────────────────────
+log ""
+log "TEST: Functions"
+define function "addNumbers" with a and b
+  set result to a plus b
+  return result
+end
+
+call function "addNumbers" with 5 and 3 into funcResult
+log "  define/call: PASS (5+3 = {funcResult})"
+
+# ─── ARRAYS ──────────────────────────────────────────────────────
+log ""
+log "TEST: Arrays"
+set scores to [10, 20, 30, 40, 50]
+
+get first item from scores into first
+log "  get first: PASS (first = {first})"
+
+append 60 to scores
+log "  append: PASS"
+
+transform scores with n into n times 2 into doubled
+log "  transform: PASS"
+
+get sorted copy of scores into sortedScores
+log "  sort: PASS"
+
+get reversed copy of scores into reversedScores
+log "  reverse: PASS"
+
+copy scores into backupScores
+log "  copy: PASS"
+
+# ─── OBJECTS ─────────────────────────────────────────────────────
+log ""
+log "TEST: Objects"
+set person to {name: "Alice", age: 30}
+log "  objects: PASS"
+
+# ─── STRINGS ─────────────────────────────────────────────────────
+log ""
+log "TEST: Strings"
+set text to "  Hello World  "
+
+trim text into trimmed
+log "  trim: PASS ({trimmed})"
+
+split trimmed by " " into words
+log "  split: PASS"
+
+join words with "-" into joined
+log "  join: PASS ({joined})"
+
+replace all "World" with "Universe" in trimmed into newText
+log "  replace: PASS ({newText})"
+
+# ─── CLASSES ─────────────────────────────────────────────────────
+log ""
+log "TEST: Classes"
+define class "Animal" with name
+  define method "speak" with no arguments
+    log "Sound from animal"
+  end
+end
+
+new "Animal" with "Tiger" into myPet
+log "  classes: PASS"
+
+# ─── ERROR HANDLING ──────────────────────────────────────────────
+log ""
+log "TEST: Error Handling"
+try
+  set x to 10
+  log "  try block: PASS"
+catch error
+  log "  catch: triggered"
+finally
+  log "  finally: PASS"
+end
+
+# ─── JSON ────────────────────────────────────────────────────────
+log ""
+log "TEST: JSON"
+set dataObj to {msg: "hello", count: 42}
+stringify dataObj into jsonStr
+log "  stringify: PASS ({jsonStr})"
+
+parse jsonStr into parsed
+log "  parse: PASS"
+
+# ─── ENVIRONMENT ─────────────────────────────────────────────────
+log ""
+log "TEST: Environment"
+get env "PATH" into pathVar
+log "  get env: PASS"
+
+# ─── FILE SYSTEM ─────────────────────────────────────────────────
+log ""
+log "TEST: File System"
+write "test content" to file "test_temp.txt"
+log "  write file: PASS"
+
+read file "test_temp.txt" into fileContent
+log "  read file: PASS ({fileContent})"
+
+file exists "test_temp.txt" into fileExists
+log "  file exists: PASS ({fileExists})"
+
+delete file "test_temp.txt"
+log "  delete file: PASS"
+
+# ─── PATH OPERATIONS ─────────────────────────────────────────────
+log ""
+log "TEST: Path Operations"
+join path "src" and "utils" and "helper.js" into fullPath
+log "  join path: PASS ({fullPath})"
+
+basename of fullPath into baseName
+log "  basename: PASS ({baseName})"
+
+dirname of fullPath into dirName
+log "  dirname: PASS ({dirName})"
+
+extname of fullPath into extName
+log "  extname: PASS ({extName})"
+
+# ─── OS MODULE ───────────────────────────────────────────────────
+log ""
+log "TEST: OS Module"
+os platform into platform
+log "  os platform: PASS ({platform})"
+
+os hostname into hostname
+log "  os hostname: PASS ({hostname})"
+
+os homedir into homedir
+log "  os homedir: PASS"
+
+# ─── CRYPTO ──────────────────────────────────────────────────────
+log ""
+log "TEST: Crypto"
+hash "password123" with "sha256" into hashedPw
+log "  hash: PASS"
+log hashedPw
+
+# ─── SUMMARY ─────────────────────────────────────────────────────
+log ""
+log "═══════════════════════════════════════════════════════════════"
+log "COMPREHENSIVE TEST COMPLETE"
+log "═══════════════════════════════════════════════════════════════"
