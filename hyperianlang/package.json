@@ -1,0 +1,29 @@
+{
+  "name": "hyperianlang",
+  "version": "1.0.0",
+  "description": "HyperianLang — a natural-language scripting language for games, usable in the browser and Node.js",
+  "main": "core.js",
+  "bin": {
+    "hl": "./run.js"
+  },
+  "scripts": {
+    "test": "node run.js examples/hello.es"
+  },
+  "keywords": [
+    "game",
+    "scripting",
+    "language",
+    "rpg",
+    "hyperianlang"
+  ],
+  "license": "MIT",
+  "files": [
+    "core.js",
+    "runtime.js",
+    "run.js",
+    "README.md"
+  ],
+  "dependencies": {
+    "better-sqlite3": "^12.6.2"
+  }
+}
