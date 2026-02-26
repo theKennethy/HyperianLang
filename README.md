@@ -20,6 +20,10 @@ end if
 - **Multi-word Variables** — Use descriptive names like `the response data` or `the current index`
 - **Full JS Parity** — Classes, async/await, generators, proxies, symbols, and more
 - **Full Node.js Parity** — HTTP servers, file system, crypto, clusters, child processes
+- **HTML Generation** — Write HTML using English sentences, no angle brackets required
+- **CSS-in-HyperianLang** — Define stylesheets with English syntax including media queries and animations
+- **Native DOM Elements** — Create DOM elements directly in client-side code
+- **Electron Support** — Build desktop apps using HyperianLang
 - **Zero Dependencies** — Pure vanilla JavaScript, works in Node.js and browsers
 - **VS Code Extension** — Syntax highlighting and code intelligence
 
@@ -36,8 +40,22 @@ node --version   # Should be v18.0.0 or higher
 
 ```bash
 git clone https://github.com/theKennethy/HyperianLang.git
-cd HyperianLang
+cd HyperianLang/hyperianlang
 node run.js example.hl
+```
+
+### Project Structure
+
+```
+HyperianLang/
+├── hyperianlang/          # Core runtime (for distribution)
+│   ├── core.js            # Main interpreter
+│   ├── run.js             # CLI runner
+│   ├── runtime.js         # Runtime utilities
+│   └── examples/          # Example .hl files
+├── electron-example/      # Desktop app example
+├── vscode-hyperianlang/   # VS Code extension
+└── README.md
 ```
 
 ---
@@ -803,28 +821,293 @@ end datalist
 
 ---
 
+# CSS-in-HyperianLang
+
+Write CSS using natural English syntax — no curly braces or colons required.
+
+## CSS Rules
+
+```hyperianlang
+css rule ".button"
+  use background to "blue"
+  use color to "white"
+  use padding to "10px 20px"
+  use borderradius to "5px"
+end rule
+
+css rule "#header"
+  background "linear-gradient(to right, blue, purple)"
+  fontsize "24px"
+  textalign "center"
+end rule
+```
+
+## CSS Classes and IDs
+
+```hyperianlang
+css class "container"
+  maxwidth "1200px"
+  margin "0 auto"
+  padding "20px"
+end class
+
+css id "main-content"
+  display "flex"
+  flexdirection "column"
+  gap "20px"
+end id
+```
+
+## Media Queries
+
+```hyperianlang
+css media "screen and (max-width: 768px)"
+  rule ".container"
+    padding "10px"
+    flexdirection "column"
+  end rule
+  rule ".sidebar"
+    display "none"
+  end rule
+end media
+
+css responsive "(min-width: 1024px)"
+  rule ".grid"
+    gridtemplatecolumns "repeat(3, 1fr)"
+  end rule
+end responsive
+```
+
+## Keyframe Animations
+
+```hyperianlang
+css keyframes "fadeIn"
+  at "0%"
+    opacity "0"
+    transform "translateY(-20px)"
+  at "100%"
+    opacity "1"
+    transform "translateY(0)"
+end keyframes
+
+css animation "slideIn"
+  frame "from"
+    transform "translateX(-100%)"
+  frame "to"
+    transform "translateX(0)"
+end animation
+```
+
+## Font Faces
+
+```hyperianlang
+css fontface "CustomFont"
+  source "url('fonts/custom.woff2') format('woff2')"
+  weight "400"
+  style "normal"
+end fontface
+```
+
+## CSS Variables
+
+```hyperianlang
+css variable "--primary-color" value "#3498db"
+css variable "--spacing" value "16px"
+
+css rule ".themed"
+  use background to "var(--primary-color)"
+  use padding to "var(--spacing)"
+end rule
+```
+
+## Inline Styles
+
+```hyperianlang
+css inline ".urgent" with background "red" color "white" fontweight "bold" into urgentStyle
+```
+
+---
+
+# Client-Side DOM Manipulation
+
+Create and manipulate DOM elements directly in client-side scripts.
+
+## Creating Elements
+
+```hyperianlang
+client script
+  create element "div" into container
+  create button "Click Me" into btn
+  create paragraph "Hello World" into text
+  create span "Inline text" into label
+  create list item into li
+end script
+```
+
+## Appending Elements
+
+```hyperianlang
+client script
+  create element "ul" into list
+  
+  create list item into item1
+  set text of item1 to "First item"
+  append item1 to list
+  
+  create list item into item2
+  set text of item2 to "Second item"
+  append item2 to list
+  
+  append list to document body
+end script
+```
+
+## Setting Attributes and Properties
+
+```hyperianlang
+client script
+  create element "input" into field
+  set attribute "type" of field to "email"
+  set attribute "placeholder" of field to "Enter email"
+  set class of field to "form-input"
+  set id of field to "email-field"
+end script
+```
+
+## Event Handling
+
+```hyperianlang
+client script
+  when page loaded
+    say "Page is ready"
+  end when
+  
+  when "button" clicked
+    say "Button was clicked"
+  end when
+  
+  when "form" submitted
+    prevent default
+    say "Form submitted"
+  end when
+  
+  when hash changes
+    say "URL hash changed"
+  end when
+end script
+```
+
+## Selecting Elements
+
+```hyperianlang
+client script
+  select "#myElement" into element
+  select all ".items" into allItems
+  
+  set text of element to "Updated content"
+end script
+```
+
+## Defining Functions
+
+```hyperianlang
+client script
+  define function updateCounter with amount
+    let current be get text of "#counter"
+    let newValue be current plus amount
+    set text of "#counter" to newValue
+  end function
+  
+  define async function fetchData with url
+    await fetch url into response
+    return response
+  end function
+end script
+```
+
+---
+
 # Electron Desktop Apps
 
-Run any HyperianLang file as a desktop app:
+Build desktop applications using HyperianLang. Everything runs in Electron with a minimal JavaScript wrapper.
+
+## Quick Start
 
 ```bash
-npm install electron --save-dev
-node run.js --electron app.hl
+cd electron-example
+npm install
+npm start
+```
+
+## How It Works
+
+The `electron-example/` folder demonstrates a complete desktop app:
+
+```
+electron-example/
+├── app.hl          # Your entire app in HyperianLang
+├── main.js         # Minimal Electron loader
+└── package.json
+```
+
+## The app.hl file handles everything:
+
+- **HTTP Server**: Routes and request handling
+- **HTML Generation**: Dynamic page rendering
+- **Data Management**: Variables, functions, state
+- **Form Processing**: POST request handling
+
+## Example App Structure
+
+```hyperianlang
+// Start the server
+start the server on port 3000
+
+// Define data
+let todos be []
+
+// Handle routes
+when the server receives a "GET" request to "/" then
+  set html to "<!DOCTYPE html><html>..."
+  send html html
+end when
+
+when the server receives a "POST" request to "/add" then
+  set body to get the body from request
+  append body to todos
+  respond with {success: true}
+end when
+```
+
+## Run with Electron
+
+```bash
+cd electron-example
+npm install
+npm start
 ```
 
 ---
 
 # VS Code Extension
 
+Install the HyperianLang VS Code extension for syntax highlighting:
+
 ```bash
 cp -r vscode-hyperianlang ~/.vscode/extensions/hyperianlang
 ```
+
+Then reload VS Code.
 
 ---
 
 # Examples
 
-See `example.hl`, `webapp.hl`, and `server.hl` for complete examples.
+See the `hyperianlang/examples/` folder for complete examples:
+
+- `example.hl` — Basic language features
+- `server.hl` — HTTP server with routes
+- `webapp.hl` — Full web application
 
 ---
 
