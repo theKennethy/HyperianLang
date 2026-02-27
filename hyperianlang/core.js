@@ -3693,11 +3693,32 @@ class HLParser {
   // ─── WebSockets / Database Connection ────────────────────────────────────
   // connect to websocket "ws://localhost:8080" into mySocket
   // connect to database "myapp.db"
+  // connect to mysql host "localhost" user "root" password "pass" database "mydb"
+  // connect to mariadb host "localhost" user "root" password "pass" database "mydb"
   _parseConnect() {
     this._consume('connect');
     if (this._is('to')) this._next();
     
-    // Database connection
+    // MySQL/MariaDB connection
+    if (this._is('mysql') || this._is('mariadb')) {
+      const dbType = this._peek().value; // 'mysql' or 'mariadb'
+      this._next();
+      const config = { host: 'localhost', user: 'root', password: '', database: '' };
+      // Parse connection options: host "x" user "y" password "z" database "d" port N
+      while (this._peek() && !this._is('then') && !this._is('end') && !this._is('into')) {
+        if (this._is('host')) { this._next(); config.host = this._consumeIdentOrString(); }
+        else if (this._is('user')) { this._next(); config.user = this._consumeIdentOrString(); }
+        else if (this._is('password')) { this._next(); config.password = this._consumeIdentOrString(); }
+        else if (this._is('database') || this._is('db')) { this._next(); config.database = this._consumeIdentOrString(); }
+        else if (this._is('port')) { this._next(); config.port = this._parseValue(); }
+        else break;
+      }
+      let variable = null;
+      if (this._is('into') || this._is('as')) { this._next(); variable = this._consumeMultiWordName(new Set(['then', 'end'])); }
+      return { type: 'mysqlConnect', dbType, config, variable };
+    }
+    
+    // SQLite Database connection
     if (this._is('database')) {
       this._next();
       const dbPath = this._parseValue();
@@ -10088,6 +10109,20 @@ class HLInterpreter {
         const sql = String(this._resolveValue(stmt.sql));
         const params = Array.isArray(stmt.params) ? stmt.params.map(p => this._resolveValue(p)) : [];
         
+        // Use MySQL/MariaDB if connected
+        if (this._mysqlPool && (this._dbType === 'mysql' || this._dbType === 'mariadb')) {
+          (async () => {
+            try {
+              const [rows] = await this._mysqlPool.execute(sql, params);
+              if (stmt.variable) w._vars[stmt.variable] = rows;
+            } catch (e) {
+              console.warn(`[HyperianLang] MySQL error: ${e.message}`);
+              if (stmt.variable) w._vars[stmt.variable] = { error: e.message };
+            }
+          })();
+          break;
+        }
+        
         // Use better-sqlite3 for synchronous SQLite
         let Database;
         try { Database = require('better-sqlite3'); }
@@ -10122,6 +10157,18 @@ class HLInterpreter {
         const placeholders = columns.map(() => '?').join(', ');
         const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
         
+        // Use MySQL/MariaDB if connected
+        if (this._mysqlPool && (this._dbType === 'mysql' || this._dbType === 'mariadb')) {
+          (async () => {
+            try {
+              await this._mysqlPool.execute(sql, values);
+            } catch (e) {
+              console.warn(`[HyperianLang] MySQL insert error: ${e.message}`);
+            }
+          })();
+          break;
+        }
+        
         let Database;
         try { Database = require('better-sqlite3'); }
         catch (e) { break; }
@@ -10148,6 +10195,20 @@ class HLInterpreter {
         }
         if (stmt.limit) sql += ` LIMIT ${this._resolveValue(stmt.limit)}`;
         if (stmt.offset) sql += ` OFFSET ${this._resolveValue(stmt.offset)}`;
+        
+        // Use MySQL/MariaDB if connected
+        if (this._mysqlPool && (this._dbType === 'mysql' || this._dbType === 'mariadb')) {
+          (async () => {
+            try {
+              const [rows] = await this._mysqlPool.execute(sql, params);
+              if (stmt.variable) w._vars[stmt.variable] = rows;
+            } catch (e) {
+              console.warn(`[HyperianLang] MySQL select error: ${e.message}`);
+              if (stmt.variable) w._vars[stmt.variable] = [];
+            }
+          })();
+          break;
+        }
         
         let Database;
         try { Database = require('better-sqlite3'); }
@@ -10177,9 +10238,38 @@ class HLInterpreter {
         
         try {
           this._db = new Database(dbPath);
-          console.log(`[HyperianLang] Connected to database: ${dbPath}`);
+          this._dbType = 'sqlite';
+          console.log(`[HyperianLang] Connected to SQLite database: ${dbPath}`);
         } catch (e) {
           console.warn(`[HyperianLang] Database connection error: ${e.message}`);
+        }
+        break;
+      }
+
+      case 'mysqlConnect': {
+        if (!w || typeof require === 'undefined') break;
+        const config = {
+          host: stmt.config.host || 'localhost',
+          user: stmt.config.user || 'root',
+          password: stmt.config.password || '',
+          database: stmt.config.database || '',
+        };
+        if (stmt.config.port) config.port = Number(this._resolveValue(stmt.config.port));
+        
+        let mysql;
+        try { mysql = require('mysql2/promise'); }
+        catch (e) { 
+          console.warn('[HyperianLang] mysql2 not found. Install with: npm install mysql2');
+          break;
+        }
+        
+        try {
+          this._mysqlPool = mysql.createPool(config);
+          this._dbType = stmt.dbType; // 'mysql' or 'mariadb'
+          if (stmt.variable) w._vars[stmt.variable] = this._mysqlPool;
+          console.log(`[HyperianLang] Connected to ${stmt.dbType}: ${config.user}@${config.host}/${config.database}`);
+        } catch (e) {
+          console.warn(`[HyperianLang] MySQL/MariaDB connection error: ${e.message}`);
         }
         break;
       }
