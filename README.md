@@ -656,6 +656,32 @@ connect to mariadb "127.0.0.1" as "admin" with password "pass" using database "s
 query "SELECT * FROM users" into users
 ```
 
+## Database (PostgreSQL)
+
+Requires: `npm install pg`
+
+```hyperianlang
+connect to postgres "localhost" as "postgres" with password "secret" using database "myapp"
+
+# With custom port
+connect to postgres "localhost" as "admin" with password "pass" using database "shop" on port 5433
+
+# Create table (note: SERIAL for auto-increment)
+query "CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name VARCHAR(255), email VARCHAR(255))"
+
+# Insert with $1, $2 placeholders (PostgreSQL style)
+query "INSERT INTO users (name, email) VALUES ($1, $2)" with userName, userEmail
+
+# Insert with RETURNING to get the new row
+query "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *" with userName, userEmail into newUser
+
+# Select data
+query "SELECT * FROM users WHERE id = $1" with userId into results
+
+# Delete data
+query "DELETE FROM users WHERE id = $1" with userId
+```
+
 ## JSON
 
 ```hyperianlang

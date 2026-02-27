@@ -3695,17 +3695,18 @@ class HLParser {
   // connect to database "myapp.db"
   // connect to mysql "localhost" as "root" with password "pass" using database "mydb"
   // connect to mariadb "localhost" as "root" with password "pass" using database "mydb"
+  // connect to postgres "localhost" as "postgres" with password "pass" using database "mydb"
   _parseConnect() {
     this._consume('connect');
     if (this._is('to')) this._next();
     
-    // MySQL/MariaDB connection
-    if (this._is('mysql') || this._is('mariadb')) {
-      const dbType = this._peek().value; // 'mysql' or 'mariadb'
+    // MySQL/MariaDB/PostgreSQL connection
+    if (this._is('mysql') || this._is('mariadb') || this._is('postgres') || this._is('postgresql')) {
+      const dbType = this._peek().value; // 'mysql', 'mariadb', 'postgres', or 'postgresql'
       this._next();
-      const config = { host: 'localhost', user: 'root', password: '', database: '' };
+      const config = { host: 'localhost', user: dbType.startsWith('postgres') ? 'postgres' : 'root', password: '', database: '' };
       
-      // First value after mysql/mariadb is the host
+      // First value after mysql/mariadb/postgres is the host
       if (this._peek() && this._peek().type === 'STRING') {
         config.host = this._consumeIdentOrString();
       }
@@ -3745,6 +3746,11 @@ class HLParser {
       }
       let variable = null;
       if (this._is('into') || this._is('as')) { this._next(); variable = this._consumeMultiWordName(new Set(['then', 'end'])); }
+      
+      // Return appropriate type based on database
+      if (dbType === 'postgres' || dbType === 'postgresql') {
+        return { type: 'postgresConnect', dbType: 'postgres', config, variable };
+      }
       return { type: 'mysqlConnect', dbType, config, variable };
     }
     
@@ -10139,6 +10145,20 @@ class HLInterpreter {
         const sql = String(this._resolveValue(stmt.sql));
         const params = Array.isArray(stmt.params) ? stmt.params.map(p => this._resolveValue(p)) : [];
         
+        // Use PostgreSQL if connected
+        if (this._pgPool && this._dbType === 'postgres') {
+          (async () => {
+            try {
+              const { rows } = await this._pgPool.query(sql, params);
+              if (stmt.variable) w._vars[stmt.variable] = rows;
+            } catch (e) {
+              console.warn(`[HyperianLang] PostgreSQL error: ${e.message}`);
+              if (stmt.variable) w._vars[stmt.variable] = { error: e.message };
+            }
+          })();
+          break;
+        }
+        
         // Use MySQL/MariaDB if connected
         if (this._mysqlPool && (this._dbType === 'mysql' || this._dbType === 'mariadb')) {
           (async () => {
@@ -10184,6 +10204,21 @@ class HLInterpreter {
         
         const columns = Object.keys(data);
         const values = Object.values(data);
+        
+        // Use PostgreSQL if connected
+        if (this._pgPool && this._dbType === 'postgres') {
+          const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
+          const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
+          (async () => {
+            try {
+              await this._pgPool.query(sql, values);
+            } catch (e) {
+              console.warn(`[HyperianLang] PostgreSQL insert error: ${e.message}`);
+            }
+          })();
+          break;
+        }
+        
         const placeholders = columns.map(() => '?').join(', ');
         const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
         
@@ -10225,6 +10260,20 @@ class HLInterpreter {
         }
         if (stmt.limit) sql += ` LIMIT ${this._resolveValue(stmt.limit)}`;
         if (stmt.offset) sql += ` OFFSET ${this._resolveValue(stmt.offset)}`;
+        
+        // Use PostgreSQL if connected
+        if (this._pgPool && this._dbType === 'postgres') {
+          (async () => {
+            try {
+              const { rows } = await this._pgPool.query(sql, params);
+              if (stmt.variable) w._vars[stmt.variable] = rows;
+            } catch (e) {
+              console.warn(`[HyperianLang] PostgreSQL select error: ${e.message}`);
+              if (stmt.variable) w._vars[stmt.variable] = [];
+            }
+          })();
+          break;
+        }
         
         // Use MySQL/MariaDB if connected
         if (this._mysqlPool && (this._dbType === 'mysql' || this._dbType === 'mariadb')) {
@@ -10300,6 +10349,34 @@ class HLInterpreter {
           console.log(`[HyperianLang] Connected to ${stmt.dbType}: ${config.user}@${config.host}/${config.database}`);
         } catch (e) {
           console.warn(`[HyperianLang] MySQL/MariaDB connection error: ${e.message}`);
+        }
+        break;
+      }
+
+      case 'postgresConnect': {
+        if (!w || typeof require === 'undefined') break;
+        const config = {
+          host: stmt.config.host || 'localhost',
+          user: stmt.config.user || 'postgres',
+          password: stmt.config.password || '',
+          database: stmt.config.database || '',
+        };
+        if (stmt.config.port) config.port = Number(this._resolveValue(stmt.config.port));
+        
+        let pg;
+        try { pg = require('pg'); }
+        catch (e) { 
+          console.warn('[HyperianLang] pg not found. Install with: npm install pg');
+          break;
+        }
+        
+        try {
+          this._pgPool = new pg.Pool(config);
+          this._dbType = 'postgres';
+          if (stmt.variable) w._vars[stmt.variable] = this._pgPool;
+          console.log(`[HyperianLang] Connected to PostgreSQL: ${config.user}@${config.host}/${config.database}`);
+        } catch (e) {
+          console.warn(`[HyperianLang] PostgreSQL connection error: ${e.message}`);
         }
         break;
       }
