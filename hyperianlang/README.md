@@ -19,7 +19,7 @@ end if
 - **Natural English Syntax** — Write `let the item count be 0` instead of `let itemCount = 0`
 - **Multi-word Variables** — Use descriptive names like `the response data` or `the current index`
 - **Full JS Parity** — Classes, async/await, generators, proxies, symbols, and more
-- **Full Node.js Parity** — HTTP servers, file system, crypto, clusters, child processes
+- **Full Node.js Parity** — HTTP servers, file system, crypto, email, clusters, child processes
 - **Zero Dependencies** — Pure vanilla JavaScript, works in Node.js and browsers
 - **VS Code Extension** — Syntax highlighting and code intelligence
 
@@ -538,6 +538,36 @@ decrypt encrypted with "aes-256-cbc" and key into decrypted
 
 // Random bytes
 random bytes 32 into buffer
+```
+
+## Email
+
+Send emails via SMTP using nodemailer.
+
+```hyperianlang
+// Basic email (uses SMTP_HOST, SMTP_USER, SMTP_PASS environment variables)
+send email to "recipient@example.com" with subject "Hello" and body "Your message here"
+
+// With SMTP configuration
+send email to "heir@example.com" with subject "Alert" and body "Check in required" using smtp "smtp.gmail.com" as "user@gmail.com" with password "app-password"
+
+// Using variables
+set recipientEmail to "heir@example.com"
+set emailSubject to "Founder has not checked in"
+set emailBody to "Please access the vault at https://..."
+
+send email to recipientEmail with subject emailSubject and body emailBody
+
+// With custom port
+send email to recipient with subject emailSubject and body emailBody using smtp "mail.example.com" as smtpUser with password smtpPass on port 465
+```
+
+**Environment Variables (optional):**
+```bash
+export SMTP_HOST=smtp.gmail.com
+export SMTP_USER=your-email@gmail.com
+export SMTP_PASS=your-app-password
+export SMTP_PORT=587
 ```
 
 ## Child Process
