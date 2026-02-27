@@ -6920,39 +6920,50 @@ class HLParser {
       this._next();
       
       // IndexedDB: get all from database VAR into VAR (must check before consuming 'all')
-      // Also: get all from indexeddb VAR into VAR (alias)
-      if (this._is('all') && this._peek(1)?.value === 'from' && (this._peek(2)?.value === 'database' || this._peek(2)?.value === 'db' || this._peek(2)?.value === 'indexeddb')) {
-        this._next(); // all
-        this._next(); // from
-        this._next(); // database/indexeddb
-        const dbVar = this._consumeIdent();
-        let out = null;
-        if (this._is('into') || this._is('as')) {
-          this._next();
-          out = this._consumeIdent();
+      // Also: get all from the indexeddb database into VAR (English sentence style)
+      if (this._is('all') && this._peek(1)?.value === 'from') {
+        // Check for IndexedDB pattern with lookahead
+        let lookIdx = 2;
+        if (this._peek(lookIdx)?.value === 'the') lookIdx++;
+        if (this._peek(lookIdx)?.value === 'indexeddb' || this._peek(lookIdx)?.value === 'database' || this._peek(lookIdx)?.value === 'db') {
+          this._next(); // all
+          this._next(); // from
+          if (this._is('the')) this._next(); // the
+          this._next(); // indexeddb/database/db
+          const dbVar = this._consumeIdent();
+          let out = null;
+          if (this._is('into') || this._is('as')) {
+            this._next();
+            out = this._consumeIdent();
+          }
+          return { type: 'clientDbGetAll', dbVar, out };
         }
-        return { type: 'clientDbGetAll', dbVar, out };
       }
       
       // IndexedDB: get from database VAR with key KEY into VAR
-      // Also: get from indexeddb VAR with key KEY into VAR (alias)
-      if (this._is('from') && (this._peek(1)?.value === 'database' || this._peek(1)?.value === 'db' || this._peek(1)?.value === 'indexeddb')) {
-        this._next(); // from
-        this._next(); // database/indexeddb
-        const dbVar = this._consumeIdent();
-        let key = null;
-        if (this._is('with') || this._is('key') || this._is('where')) {
-          if (this._is('with') || this._is('where')) this._next();
-          if (this._is('key') || this._is('id')) this._next();
-          if (this._is('equals') || this._is('is')) this._next();
-          key = this._parseClientValue();
+      // Also: get from the indexeddb database with key KEY into VAR
+      if (this._is('from')) {
+        let lookIdx = 1;
+        if (this._peek(lookIdx)?.value === 'the') lookIdx++;
+        if (this._peek(lookIdx)?.value === 'indexeddb' || this._peek(lookIdx)?.value === 'database' || this._peek(lookIdx)?.value === 'db') {
+          this._next(); // from
+          if (this._is('the')) this._next(); // the
+          this._next(); // indexeddb/database/db
+          const dbVar = this._consumeIdent();
+          let key = null;
+          if (this._is('with') || this._is('key') || this._is('where')) {
+            if (this._is('with') || this._is('where')) this._next();
+            if (this._is('key') || this._is('id')) this._next();
+            if (this._is('equals') || this._is('is')) this._next();
+            key = this._parseClientValue();
+          }
+          let out = null;
+          if (this._is('into') || this._is('as')) {
+            this._next();
+            out = this._consumeIdent();
+          }
+          return { type: 'clientDbGet', dbVar, key, out };
         }
-        let out = null;
-        if (this._is('into') || this._is('as')) {
-          this._next();
-          out = this._consumeIdent();
-        }
-        return { type: 'clientDbGet', dbVar, key, out };
       }
       
       if (this._is('value') || this._is('the')) {
@@ -7114,7 +7125,8 @@ class HLParser {
     }
     
     // localStorage: save VALUE to storage KEY / store VALUE as KEY
-    if (this._is('save') || this._is('store')) {
+    // Skip if this is an IndexedDB save (has indexeddb/database keyword ahead)
+    if ((this._is('save') || this._is('store')) && !this._lookaheadContains(['indexeddb', 'database', 'db'], 20)) {
       this._next();
       const value = this._parseClientValue();
       if (this._is('to') || this._is('in') || this._is('as')) this._next();
@@ -7188,8 +7200,9 @@ class HLParser {
     if (this._is('remove') || this._is('delete') || this._is('clear')) {
       this._next();
       if (this._is('from')) this._next();
+      if (this._is('the')) this._next(); // skip "the"
       
-      // IndexedDB: delete from database/indexeddb VAR with key KEY
+      // IndexedDB: delete from the indexeddb database with key KEY
       if (this._is('database') || this._is('db') || this._is('indexeddb')) {
         this._next();
         const dbVar = this._consumeIdent();
@@ -7217,9 +7230,10 @@ class HLParser {
     }
     
     // IndexedDB: open database NAME with store STORENAME
-    // Also: open indexeddb NAME with store STORENAME (alias)
+    // Also: open the indexeddb NAME with store STORENAME (alias)
     if (this._is('open')) {
       this._next();
+      if (this._is('the')) this._next(); // skip "the"
       if (this._is('database') || this._is('db') || this._is('indexed') || this._is('indexeddb')) {
         this._next();
         if (this._is('database') || this._is('db')) this._next();
@@ -7248,12 +7262,25 @@ class HLParser {
     }
     
     // IndexedDB: save VALUE to database/indexeddb VAR
-    // Also: save VALUE to indexeddb VAR with key KEY
-    if ((this._is('save') || this._is('store')) && this._lookaheadContains(['database', 'db', 'indexeddb'], 5)) {
+    // Also: save VALUE to the indexeddb database with key KEY
+    if ((this._is('save') || this._is('store')) && this._lookaheadContains(['database', 'db', 'indexeddb'], 20)) {
       this._next();
       const value = this._parseClientValue();
       if (this._is('to') || this._is('in')) this._next();
-      if (this._is('database') || this._is('db') || this._is('indexeddb')) {
+      if (this._is('the')) this._next(); // skip "the"
+      if (this._is('indexeddb')) {
+        this._next(); // skip "indexeddb" keyword
+        // Now the next word is the variable name (could be "database", "db", etc.)
+        const dbVar = this._consumeIdent();
+        let key = null;
+        if (this._is('with') || this._is('as') || this._is('key')) {
+          if (this._is('with') || this._is('as')) this._next();
+          if (this._is('key') || this._is('id')) this._next();
+          key = this._parseClientValue();
+        }
+        return { type: 'clientDbAdd', dbVar, key, value };
+      } else if (this._is('database') || this._is('db')) {
+        // Old style: save VALUE to database VAR
         this._next();
         const dbVar = this._consumeIdent();
         let key = null;
@@ -7343,12 +7370,12 @@ class HLParser {
       }
       if (this._is('then')) this._next();
       const body = [];
-      while (!this._isEndTag('if') && !this._is('else') && this._peek()) {
+      while (!this._isEndTag('if') && !this._is('else') && !this._is('otherwise') && this._peek()) {
         const stmt = this._parseClientStatement();
         if (stmt) body.push(stmt);
       }
       let elseBody = [];
-      if (this._is('else')) {
+      if (this._is('else') || this._is('otherwise')) {
         this._next();
         while (!this._isEndTag('if') && this._peek()) {
           const stmt = this._parseClientStatement();
@@ -13525,6 +13552,8 @@ class HLInterpreter {
           const funcVars = new Set(stmt.params);
           lines.push(this._generateClientJS(stmt.body, indent + 1, funcVars));
           lines.push(`${pad}}`);
+          // Expose function to window for onclick handlers
+          lines.push(`${pad}window.${stmt.name} = ${stmt.name};`);
           break;
         }
         
@@ -13542,8 +13571,9 @@ class HLInterpreter {
             targetJS = `document.getElementById('${stmt.target}')`;
           }
           lines.push(`${pad}${targetJS}.addEventListener('${stmt.event}', async (e) => {`);
-          // Event handler has its own scope
-          const eventVars = new Set(['e']);
+          // Event handler inherits parent scope variables
+          const eventVars = new Set(localVars);
+          eventVars.add('e');
           lines.push(this._generateClientJS(stmt.body, indent + 1, eventVars));
           lines.push(`${pad}});`);
           break;

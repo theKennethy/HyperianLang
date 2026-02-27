@@ -1,0 +1,461 @@
+# HyperianLang Web Application with IndexedDB
+# A beautiful single-page app using browser IndexedDB for persistent storage
+
+log "Starting HyperianLang Web Application with IndexedDB..."
+
+# Serve the main HTML page
+when the server receives a "GET" request to "/" then
+  html page
+    html head
+      html title "HyperianLang IndexedDB App"
+      
+      # Root variables - Teal/Cyan theme
+      css rule ":root"
+        use background to "#00b4d8"
+      end rule
+      
+      # Universal box sizing
+      css rule "*, *::before, *::after"
+        use boxsizing to "border-box"
+      end rule
+      
+      # Body styling
+      css rule "body"
+        use fontfamily to "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+        use background to "linear-gradient(135deg, #00b4d8 0%, #0077b6 100%)"
+        use minheight to "100vh"
+        use margin to "0"
+        use padding to "20px"
+      end rule
+      
+      # Container
+      css class "container"
+        use maxwidth to "900px"
+        use margin to "0 auto"
+        use background to "white"
+        use borderradius to "16px"
+        use boxshadow to "0 20px 60px rgba(0,0,0,0.3)"
+        use overflow to "hidden"
+      end rule
+      
+      # Header
+      css rule "h1"
+        use background to "linear-gradient(135deg, #00b4d8 0%, #0077b6 100%)"
+        use color to "white"
+        use margin to "0"
+        use padding to "30px"
+        use textalign to "center"
+        use fontsize to "28px"
+      end rule
+      
+      # Navigation
+      css class "nav"
+        use display to "flex"
+        use justifycontent to "center"
+        use gap to "10px"
+        use padding to "15px"
+        use background to "#f8f9fa"
+        use borderBottom to "1px solid #dee2e6"
+      end rule
+      
+      css rule ".nav a"
+        use padding to "10px 20px"
+        use textdecoration to "none"
+        use color to "#00b4d8"
+        use borderradius to "8px"
+        use transition to "all 0.3s ease"
+        use fontweight to "500"
+      end rule
+      
+      css rule ".nav a:hover"
+        use background to "#00b4d8"
+        use color to "white"
+      end rule
+      
+      # Pages
+      css class "page"
+        use padding to "30px"
+      end rule
+      
+      # Cards
+      css class "card"
+        use background to "#f8f9fa"
+        use borderradius to "12px"
+        use padding to "25px"
+        use marginbottom to "20px"
+      end rule
+      
+      css rule ".card h2"
+        use margin to "0 0 15px 0"
+        use color to "#333"
+      end rule
+      
+      # Stats
+      css class "stats"
+        use display to "grid"
+        use gridtemplatecolumns to "repeat(auto-fit, minmax(200px, 1fr))"
+        use gap to "20px"
+      end rule
+      
+      css class "stat"
+        use background to "linear-gradient(135deg, #00b4d8 0%, #0077b6 100%)"
+        use color to "white"
+        use padding to "30px"
+        use borderradius to "12px"
+        use textalign to "center"
+      end rule
+      
+      css rule ".stat-num"
+        use fontsize to "36px"
+        use fontweight to "bold"
+      end rule
+      
+      css rule ".stat-label"
+        use opacity to "0.9"
+        use margintop to "5px"
+      end rule
+      
+      # User list
+      css class "user-list"
+        use liststyle to "none"
+        use padding to "0"
+        use margin to "0"
+      end rule
+      
+      css class "user-card"
+        use display to "flex"
+        use justifycontent to "space-between"
+        use alignitems to "center"
+        use padding to "15px"
+        use background to "white"
+        use borderradius to "8px"
+        use marginbottom to "10px"
+        use boxshadow to "0 2px 4px rgba(0,0,0,0.1)"
+      end rule
+      
+      css class "badge"
+        use background to "#00b4d8"
+        use color to "white"
+        use padding to "5px 12px"
+        use borderradius to "20px"
+        use fontsize to "12px"
+      end rule
+      
+      css class "delete-btn"
+        use background to "#dc3545"
+        use color to "white"
+        use border to "none"
+        use padding to "5px 12px"
+        use borderradius to "5px"
+        use cursor to "pointer"
+        use fontsize to "12px"
+        use width to "auto"
+      end rule
+      
+      css rule ".delete-btn:hover"
+        use background to "#c82333"
+        use transform to "none"
+        use boxshadow to "none"
+      end rule
+      
+      # Form styling
+      css rule "input"
+        use width to "100%"
+        use padding to "12px 15px"
+        use marginbottom to "15px"
+        use border to "2px solid #dee2e6"
+        use borderradius to "8px"
+        use fontsize to "14px"
+        use transition to "border-color 0.3s"
+      end rule
+      
+      css rule "input:focus"
+        use outline to "none"
+        use bordercolor to "#00b4d8"
+      end rule
+      
+      css rule "button"
+        use width to "100%"
+        use padding to "12px"
+        use background to "linear-gradient(135deg, #00b4d8 0%, #0077b6 100%)"
+        use color to "white"
+        use border to "none"
+        use borderradius to "8px"
+        use fontsize to "16px"
+        use fontweight to "600"
+        use cursor to "pointer"
+        use transition to "transform 0.2s, box-shadow 0.2s"
+      end rule
+      
+      css rule "button:hover"
+        use transform to "translateY(-2px)"
+        use boxshadow to "0 4px 12px rgba(0, 180, 216, 0.4)"
+      end rule
+      
+      css class "success"
+        use display to "none"
+        use background to "#d4edda"
+        use color to "#155724"
+        use padding to "15px"
+        use borderradius to "8px"
+        use margintop to "15px"
+        use textalign to "center"
+      end rule
+      
+      css class "storage-info"
+        use background to "#e3f2fd"
+        use color to "#0077b6"
+        use padding to "10px 15px"
+        use borderradius to "8px"
+        use fontsize to "13px"
+        use margintop to "10px"
+      end rule
+      
+    end head
+    html body
+      html div with class "container"
+        html heading "HyperianLang IndexedDB App"
+        html nav with class "nav"
+          html link "#home" "Home" with onclick "showPage('home')"
+          html link "#users" "Users" with onclick "showPage('users')"
+          html link "#stats" "Stats" with onclick "showPage('stats')"
+          html link "#add" "Add User" with onclick "showPage('add')"
+        end nav
+        
+        # Home Page
+        html div with id "page-home" and class "page"
+          html div with class "card"
+            html heading 2 "Welcome!"
+            html paragraph "This web application uses IndexedDB for persistent browser storage."
+            html break
+            html paragraph "Features:"
+            html unordered
+              html item "IndexedDB for persistent client-side storage"
+              html item "Data survives browser restarts"
+              html item "Offline-capable data access"
+              html item "Full CRUD operations"
+            end unordered
+            html div with class "storage-info"
+              html paragraph "Storage: IndexedDB (persistent browser database)"
+            end div
+          end div
+        end div
+        
+        # Users Page
+        html div with id "page-users" and class "page" and style "display:none"
+          html div with class "card"
+            html heading 2 "User Directory"
+            html div with id "users-container"
+              html paragraph "Loading..."
+            end div
+          end div
+        end div
+        
+        # Stats Page
+        html div with id "page-stats" and class "page" and style "display:none"
+          html div with class "stats"
+            html div with class "stat"
+              html div with class "stat-num" and id "user-count"
+                html paragraph "-"
+              end div
+              html div with class "stat-label"
+                html paragraph "Total Users"
+              end div
+            end div
+            html div with class "stat"
+              html div with class "stat-num"
+                html paragraph "IndexedDB"
+              end div
+              html div with class "stat-label"
+                html paragraph "Storage Type"
+              end div
+            end div
+            html div with class "stat"
+              html div with class "stat-num"
+                html paragraph "Persistent"
+              end div
+              html div with class "stat-label"
+                html paragraph "Data Lifetime"
+              end div
+            end div
+          end div
+        end div
+        
+        # Add User Page
+        html div with id "page-add" and class "page" and style "display:none"
+          html div with class "card"
+            html heading 2 "Create New User"
+            html form with id "userForm"
+              html input with type "text" and id "name" and placeholder "Full Name" and required
+              html input with type "email" and id "email" and placeholder "Email Address" and required
+              html button "Add User" with type "submit"
+            end form
+            html div with id "success" and class "success"
+              html paragraph "User saved to IndexedDB!"
+            end div
+          end div
+        end div
+        
+      end div
+      
+      html script block
+        # Database connection variable
+        set database to nothing
+        
+        # Show a specific page and hide others
+        define function showPage with page
+          select all ".page" into pages
+          for each p in pages
+            hide p
+          end for
+          set currentPage to "#page-" joined with page
+          select currentPage into pageElement
+          show pageElement
+          save page to storage "lastPage"
+          if page equals "users" then
+            call loadUsers
+          end if
+          if page equals "stats" then
+            call loadStats
+          end if
+        end function
+        
+        # Load and display users from IndexedDB
+        define async function loadUsers
+          select "#users-container" into container
+          set container html to "Loading..."
+          try
+            get all from the indexeddb database into users
+            if users property length equals 0 then
+              set container html to "<p>No users yet. Add some users to get started!</p>"
+            otherwise
+              set htmlContent to ""
+              for each user in users
+                set userId to user property id
+                set htmlContent to htmlContent joined with "<div class='user-card'><div><strong>" joined with user property name joined with "</strong><br><small>" joined with user property email joined with "</small></div><button class='delete-btn' onclick='removeUser(" joined with userId joined with ")'>Delete</button></div>"
+              end for
+              set container html to htmlContent
+            end if
+          catch error
+            set container html to "Error loading users from IndexedDB."
+            log error
+          end try
+        end function
+        
+        # Delete a user
+        define async function removeUser with id
+          try
+            delete from the indexeddb database where key equals id
+            call loadUsers
+          catch error
+            alert "Error deleting user"
+            log error
+          end try
+        end function
+        
+        # Load and display stats
+        define async function loadStats
+          try
+            get all from the indexeddb database into users
+            select "#user-count" into countEl
+            set countEl text to users property length
+          catch error
+            log error
+          end try
+        end function
+        
+        # Handle form submission
+        when userForm submitted then
+          prevent default
+          try
+            select "#name" into nameField
+            select "#email" into emailField
+            set userName to nameField property value
+            set userEmail to emailField property value
+            set userData to { name: userName, email: userEmail }
+            save userData to the indexeddb database
+            select "#success" into successMsg
+            show successMsg
+            set nameField value to ""
+            set emailField value to ""
+            remove from storage "formDraft"
+            delay 3000 then
+              hide successMsg
+            end delay
+          catch error
+            alert "Error saving user to IndexedDB"
+            log error
+          end try
+        end when
+        
+        # Save form draft as user types
+        when "#name" input then
+          select "#name" into nameField
+          select "#email" into emailField
+          set draft to { name: nameField property value, email: emailField property value }
+          save draft to storage "formDraft"
+        end when
+        
+        when "#email" input then
+          select "#name" into nameField
+          select "#email" into emailField
+          set draft to { name: nameField property value, email: emailField property value }
+          save draft to storage "formDraft"
+        end when
+        
+        # Seed initial data if database is empty
+        define async function seedInitialData
+          get all from the indexeddb database into users
+          if users property length equals 0 then
+            save { name: "Alice Johnson", email: "alice@example.com" } to the indexeddb database
+            save { name: "Bob Smith", email: "bob@example.com" } to the indexeddb database
+            save { name: "Carol Davis", email: "carol@example.com" } to the indexeddb database
+            log "Seeded initial users to IndexedDB"
+          end if
+        end function
+        
+        # Initialize on page load
+        when page loaded then
+          # Open the IndexedDB database
+          open the indexeddb "HyperianUsersDB" with store "users" and version 1 into database
+          
+          # Seed initial data if empty
+          call seedInitialData
+          
+          # Restore last page from hash or storage
+          set hash to window property location property hash
+          if hash then
+            set page to hash property slice with 1
+            call showPage with page
+            save page to storage "lastPage"
+          else
+            load from storage "lastPage" into savedPage
+            if savedPage then
+              call showPage with savedPage
+            else
+              call showPage with "home"
+            end if
+          end if
+          
+          # Restore form draft if exists
+          load from storage "formDraft" into draft
+          if draft then
+            select "#name" into nameField
+            select "#email" into emailField
+            set nameField value to draft property name
+            set emailField value to draft property email
+          end if
+        end when
+      end script
+      
+    end body
+  end page
+end
+
+# API endpoints for external access (optional - data is in browser)
+when the server receives a "GET" request to "/api/health" then
+  respond with { status: "ok", storage: "IndexedDB", message: "Server is running" }
+end
+
+# Start the server
+start the server on port 3000
