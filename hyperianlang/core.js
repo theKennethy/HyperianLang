@@ -137,7 +137,7 @@ const _ES_ACTIONS = new Set([
   'check',
   // new features
   'spread', 'hash', 'encrypt', 'decrypt', 'encode', 'decode',
-  'buffer', 'safely',
+  'buffer', 'safely', 'email',
   // generators, proxies, symbols
   'generate', 'yield', 'intercept', 'trap',
   'tag', 'produce', 'emit', 'wrap', 'process', 'combine',
@@ -246,6 +246,8 @@ const _ES_PREPS = new Set([
   'lambda', 'arrow', 'safely', 'otherwise', 'default', 'using', 'algorithm',
   'sha256', 'sha512', 'md5', 'sha1', 'hex', 'base64', 'utf8', 'binary',
   'buffer', 'crypto', 'bytes',
+  // email
+  'smtp', 'subject', 'recipient', 'sender', 'mailserver',
   // generators/proxies/symbols
   'generator', 'yields', 'next', 'done', 'iterator',
   'proxy', 'target', 'handler', 'trap', 'traps',
@@ -1240,7 +1242,7 @@ class HLParser {
         if (this._peek(1)?.value === 'set') return this._parseCreateSet();
         if (this._peek(1)?.value === 'table' || (this._peek(1)?.value === 'a' && this._peek(2)?.value === 'table')) return this._parseCreateTable();
         return this._parseCreateFolder();
-      case 'send':      if (this._peek(1)?.value === 'response' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the' || this._peek(1)?.value === 'file' || this._peek(1)?.value === 'html' || this._peek(1)?.value === 'css') return this._parseSendResponse(); return null;
+      case 'send':      if (this._peek(1)?.value === 'email' || this._peek(1)?.value === 'an' && this._peek(2)?.value === 'email') return this._parseEmail(); if (this._peek(1)?.value === 'response' || this._peek(1)?.value === 'a' || this._peek(1)?.value === 'the' || this._peek(1)?.value === 'file' || this._peek(1)?.value === 'html' || this._peek(1)?.value === 'css') return this._parseSendResponse(); return null;
       case 'redirect':  return this._parseRedirect();
       case 'when':      if (this._peek(1)?.value === 'receiving' || this._peek(1)?.value === 'the' || this._peek(1)?.value === 'server') return this._parseWhenReceiving(); return null;
       // legacy server ops
@@ -4147,6 +4149,54 @@ class HLParser {
     if (this._is('into')) this._next();
     const out = this._consumeIdent();
     return { type: 'encrypt', input, key, out };
+  }
+
+  // ── send email to "recipient@example.com" with subject "Hello" and body "Message" ──
+  // Email sending via SMTP (nodemailer)
+  // Full syntax: send email to "to@email" with subject "Subject" and body "Body" using smtp "host" as "user" with password "pass"
+  _parseEmail() {
+    this._consume('send');
+    if (this._is('an')) this._next();
+    this._consume('email');
+    if (this._is('to')) this._next();
+    const recipient = this._parseValue();
+    let subject = null, body = null, smtpHost = null, smtpUser = null, smtpPass = null, smtpPort = 587;
+    const STOP_WORDS = new Set(['print', 'set', 'if', 'when', 'end', 'for', 'while', 'return', 'log', 'send', 'query', 'define', 'start', 'respond', 'redirect']);
+    while (this._peek() && !STOP_WORDS.has(this._peek()?.value)) {
+      if (this._is('with') || this._is('and')) {
+        this._next();
+        if (this._is('subject')) {
+          this._next();
+          subject = this._parseValue();
+        } else if (this._is('body')) {
+          this._next();
+          body = this._parseValue();
+        } else if (this._is('password')) {
+          this._next();
+          smtpPass = this._parseValue();
+        } else {
+          break;
+        }
+      } else if (this._is('using') && this._peek(1)?.value === 'smtp') {
+        this._next(); this._next();
+        smtpHost = this._parseValue();
+      } else if (this._is('as')) {
+        this._next();
+        smtpUser = this._parseValue();
+      } else if (this._is('on') && this._peek(1)?.value === 'port') {
+        this._next(); this._next();
+        smtpPort = this._parseValue();
+      } else if (this._is('subject')) {
+        this._next();
+        subject = this._parseValue();
+      } else if (this._is('body')) {
+        this._next();
+        body = this._parseValue();
+      } else {
+        break;
+      }
+    }
+    return { type: 'sendEmail', recipient, subject, body, smtpHost, smtpUser, smtpPass, smtpPort };
   }
 
   // ── decode base64 "encoded" into result ───────────────────────────────────
@@ -10790,6 +10840,46 @@ class HLInterpreter {
           result = String(input);
         }
         w._vars[stmt.out] = result;
+        break;
+      }
+
+      case 'sendEmail': {
+        // Send email via SMTP using nodemailer
+        const nodemailer = require('nodemailer');
+        const recipient = this._resolveValue(stmt.recipient);
+        const subject = this._resolveValue(stmt.subject) || '(No Subject)';
+        const body = this._resolveValue(stmt.body) || '';
+        const smtpHost = this._resolveValue(stmt.smtpHost) || process.env.SMTP_HOST || 'smtp.gmail.com';
+        const smtpUser = this._resolveValue(stmt.smtpUser) || process.env.SMTP_USER;
+        const smtpPass = this._resolveValue(stmt.smtpPass) || process.env.SMTP_PASS;
+        const smtpPort = this._resolveValue(stmt.smtpPort) || process.env.SMTP_PORT || 587;
+        
+        if (!smtpUser || !smtpPass) {
+          console.log('[HyperianLang] Email error: SMTP credentials required. Set SMTP_USER and SMTP_PASS environment variables or use "as user with password pass" syntax.');
+          break;
+        }
+        
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: Number(smtpPort),
+          secure: Number(smtpPort) === 465,
+          auth: { user: smtpUser, pass: smtpPass }
+        });
+        
+        (async () => {
+          try {
+            const info = await transporter.sendMail({
+              from: smtpUser,
+              to: recipient,
+              subject: subject,
+              text: body,
+              html: body.includes('<') ? body : undefined
+            });
+            console.log(`[HyperianLang] Email sent to ${recipient}: ${info.messageId}`);
+          } catch (err) {
+            console.log(`[HyperianLang] Email error: ${err.message}`);
+          }
+        })();
         break;
       }
 
