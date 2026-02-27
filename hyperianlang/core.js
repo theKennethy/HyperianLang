@@ -3693,8 +3693,8 @@ class HLParser {
   // ─── WebSockets / Database Connection ────────────────────────────────────
   // connect to websocket "ws://localhost:8080" into mySocket
   // connect to database "myapp.db"
-  // connect to mysql host "localhost" user "root" password "pass" database "mydb"
-  // connect to mariadb host "localhost" user "root" password "pass" database "mydb"
+  // connect to mysql "localhost" as "root" with password "pass" using database "mydb"
+  // connect to mariadb "localhost" as "root" with password "pass" using database "mydb"
   _parseConnect() {
     this._consume('connect');
     if (this._is('to')) this._next();
@@ -3704,13 +3704,43 @@ class HLParser {
       const dbType = this._peek().value; // 'mysql' or 'mariadb'
       this._next();
       const config = { host: 'localhost', user: 'root', password: '', database: '' };
-      // Parse connection options: host "x" user "y" password "z" database "d" port N
+      
+      // First value after mysql/mariadb is the host
+      if (this._peek() && this._peek().type === 'STRING') {
+        config.host = this._consumeIdentOrString();
+      }
+      
+      // Parse connection options with natural English syntax:
+      // as "user" / as user "user" / user "user"
+      // with password "pass" / password "pass"
+      // using database "db" / database "db" / db "db"
+      // on port N / port N
       while (this._peek() && !this._is('then') && !this._is('end') && !this._is('into')) {
-        if (this._is('host')) { this._next(); config.host = this._consumeIdentOrString(); }
+        if (this._is('as')) { 
+          this._next(); 
+          if (this._is('user')) this._next(); // skip optional "user"
+          config.user = this._consumeIdentOrString(); 
+        }
         else if (this._is('user')) { this._next(); config.user = this._consumeIdentOrString(); }
+        else if (this._is('with')) { 
+          this._next(); 
+          if (this._is('password')) this._next();
+          config.password = this._consumeIdentOrString(); 
+        }
         else if (this._is('password')) { this._next(); config.password = this._consumeIdentOrString(); }
+        else if (this._is('using')) { 
+          this._next(); 
+          if (this._is('database') || this._is('db')) this._next();
+          config.database = this._consumeIdentOrString(); 
+        }
         else if (this._is('database') || this._is('db')) { this._next(); config.database = this._consumeIdentOrString(); }
+        else if (this._is('on')) { 
+          this._next(); 
+          if (this._is('port')) this._next();
+          config.port = this._parseValue(); 
+        }
         else if (this._is('port')) { this._next(); config.port = this._parseValue(); }
+        else if (this._is('host')) { this._next(); config.host = this._consumeIdentOrString(); }
         else break;
       }
       let variable = null;
