@@ -24,6 +24,7 @@
     "README.md"
   ],
   "dependencies": {
-    "better-sqlite3": "^12.6.2"
+    "better-sqlite3": "^12.6.2",
+    "mysql2": "^3.18.2"
   }
 }

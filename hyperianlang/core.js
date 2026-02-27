@@ -526,7 +526,7 @@ class HLParser {
       'read', 'write', 'split', 'replace', 'convert', 'sort', 'reverse', 'filter',
       'merge', 'flatten', 'get', 'find', 'clamp', 'log', 'exit', 'run', 'create',
       'transform', 'reduce', 'copy', 'assign', 'match', 'return', 'check',
-      'query', 'select', 'insert', 'update', 'connect',
+      'query', 'select', 'insert', 'update', 'connect', 'respond', 'redirect',
       // New features
       'atomic', 'cluster', 'shared', 'iterate', 'keys', 'lookup', 'worker',
       'compress', 'decompress', 'assert', 'secure', 'pipe', 'stream',
@@ -3802,6 +3802,7 @@ class HLParser {
   // ─── Database ─────────────────────────────────────────────────────────────
   // query "SELECT * FROM users" into results
   // query database with "SELECT * FROM users" into results
+  // query "INSERT INTO users VALUES (?, ?)" with userName, userEmail
   _parseQuery() {
     this._consume('query');
     if (this._is('database')) this._next();
@@ -3811,16 +3812,27 @@ class HLParser {
     if (this._is('with') || this._is('parameters')) {
       this._next();
       if (this._is('parameters')) this._next();
-      // Parse array of params
+      // Parse array of params (either [a, b] or a, b)
       if (this._isType('LBRACKET') || this._peek()?.value === '[') {
         const p = this._parseValue();
         params = p;
+      } else {
+        // Parse comma-separated variable names: with userName, userEmail
+        while (this._peek() && !this._is('into') && !this._is('then') && !this._is('end')) {
+          const param = this._parseValue();
+          params.push(param);
+          if (this._is(',')) {
+            this._next();
+          } else {
+            break;
+          }
+        }
       }
     }
     let variable = null;
     if (this._is('into')) {
       this._next();
-      variable = this._consumeMultiWordName(new Set(['then', 'end']));
+      variable = this._consumeMultiWordName(new Set(['then', 'end', 'respond', 'redirect']));
     }
     return { type: 'dbQuery', sql, params, variable };
   }
@@ -10250,29 +10262,25 @@ class HLInterpreter {
         
         // Use PostgreSQL if connected
         if (this._pgPool && this._dbType === 'postgres') {
-          (async () => {
-            try {
-              const { rows } = await this._pgPool.query(sql, params);
-              if (stmt.variable) w._vars[stmt.variable] = rows;
-            } catch (e) {
-              console.warn(`[HyperianLang] PostgreSQL error: ${e.message}`);
-              if (stmt.variable) w._vars[stmt.variable] = { error: e.message };
-            }
-          })();
+          try {
+            const { rows } = await this._pgPool.query(sql, params);
+            if (stmt.variable) w._vars[stmt.variable] = rows;
+          } catch (e) {
+            console.warn(`[HyperianLang] PostgreSQL error: ${e.message}`);
+            if (stmt.variable) w._vars[stmt.variable] = { error: e.message };
+          }
           break;
         }
         
         // Use MySQL/MariaDB if connected
         if (this._mysqlPool && (this._dbType === 'mysql' || this._dbType === 'mariadb')) {
-          (async () => {
-            try {
-              const [rows] = await this._mysqlPool.execute(sql, params);
-              if (stmt.variable) w._vars[stmt.variable] = rows;
-            } catch (e) {
-              console.warn(`[HyperianLang] MySQL error: ${e.message}`);
-              if (stmt.variable) w._vars[stmt.variable] = { error: e.message };
-            }
-          })();
+          try {
+            const [rows] = await this._mysqlPool.execute(sql, params);
+            if (stmt.variable) w._vars[stmt.variable] = rows;
+          } catch (e) {
+            console.warn(`[HyperianLang] MySQL error: ${e.message}`);
+            if (stmt.variable) w._vars[stmt.variable] = { error: e.message };
+          }
           break;
         }
         
@@ -10312,13 +10320,11 @@ class HLInterpreter {
         if (this._pgPool && this._dbType === 'postgres') {
           const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
           const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
-          (async () => {
-            try {
-              await this._pgPool.query(sql, values);
-            } catch (e) {
-              console.warn(`[HyperianLang] PostgreSQL insert error: ${e.message}`);
-            }
-          })();
+          try {
+            await this._pgPool.query(sql, values);
+          } catch (e) {
+            console.warn(`[HyperianLang] PostgreSQL insert error: ${e.message}`);
+          }
           break;
         }
         
@@ -10327,13 +10333,11 @@ class HLInterpreter {
         
         // Use MySQL/MariaDB if connected
         if (this._mysqlPool && (this._dbType === 'mysql' || this._dbType === 'mariadb')) {
-          (async () => {
-            try {
-              await this._mysqlPool.execute(sql, values);
-            } catch (e) {
-              console.warn(`[HyperianLang] MySQL insert error: ${e.message}`);
-            }
-          })();
+          try {
+            await this._mysqlPool.execute(sql, values);
+          } catch (e) {
+            console.warn(`[HyperianLang] MySQL insert error: ${e.message}`);
+          }
           break;
         }
         
@@ -10366,29 +10370,25 @@ class HLInterpreter {
         
         // Use PostgreSQL if connected
         if (this._pgPool && this._dbType === 'postgres') {
-          (async () => {
-            try {
-              const { rows } = await this._pgPool.query(sql, params);
-              if (stmt.variable) w._vars[stmt.variable] = rows;
-            } catch (e) {
-              console.warn(`[HyperianLang] PostgreSQL select error: ${e.message}`);
-              if (stmt.variable) w._vars[stmt.variable] = [];
-            }
-          })();
+          try {
+            const { rows } = await this._pgPool.query(sql, params);
+            if (stmt.variable) w._vars[stmt.variable] = rows;
+          } catch (e) {
+            console.warn(`[HyperianLang] PostgreSQL select error: ${e.message}`);
+            if (stmt.variable) w._vars[stmt.variable] = [];
+          }
           break;
         }
         
         // Use MySQL/MariaDB if connected
         if (this._mysqlPool && (this._dbType === 'mysql' || this._dbType === 'mariadb')) {
-          (async () => {
-            try {
-              const [rows] = await this._mysqlPool.execute(sql, params);
-              if (stmt.variable) w._vars[stmt.variable] = rows;
-            } catch (e) {
-              console.warn(`[HyperianLang] MySQL select error: ${e.message}`);
-              if (stmt.variable) w._vars[stmt.variable] = [];
-            }
-          })();
+          try {
+            const [rows] = await this._mysqlPool.execute(sql, params);
+            if (stmt.variable) w._vars[stmt.variable] = rows;
+          } catch (e) {
+            console.warn(`[HyperianLang] MySQL select error: ${e.message}`);
+            if (stmt.variable) w._vars[stmt.variable] = [];
+          }
           break;
         }
         
