@@ -619,6 +619,43 @@ select from "users" where "name = 'Alice'" into results
 update "users" set {name: "Bob"} where "id = 1"
 ```
 
+## Database (MySQL)
+
+Requires: `npm install mysql2`
+
+```hyperianlang
+connect to mysql "localhost" as "root" with password "secret" using database "myapp"
+
+# With custom port
+connect to mysql "localhost" as "admin" with password "pass" using database "shop" on port 3307
+
+# Create table
+query "CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), email VARCHAR(255))"
+
+# Insert data
+query "INSERT INTO users (name, email) VALUES (?, ?)" with userName, userEmail
+
+# Select data
+query "SELECT * FROM users WHERE id = ?" with userId into results
+
+# Delete data
+query "DELETE FROM users WHERE id = ?" with userId
+```
+
+## Database (MariaDB)
+
+Requires: `npm install mysql2`
+
+```hyperianlang
+connect to mariadb "localhost" as "root" with password "secret" using database "myapp"
+
+# With custom port
+connect to mariadb "127.0.0.1" as "admin" with password "pass" using database "shop" on port 3307
+
+# Uses same query syntax as MySQL
+query "SELECT * FROM users" into users
+```
+
 ## JSON
 
 ```hyperianlang
