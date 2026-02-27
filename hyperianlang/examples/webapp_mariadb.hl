@@ -1,0 +1,469 @@
+# HyperianLang Web Application with MariaDB
+# A beautiful single-page app with navigation, user management, and MariaDB database
+
+# Connect to MariaDB database
+connect to mariadb "localhost" as "root" with password "" using database "hyperianlang_app"
+
+# Initialize database table (runs once)
+query "CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), email VARCHAR(255))"
+
+# Insert sample data if table is empty
+query "SELECT COUNT(*) as count FROM users" into countResult
+if countResult property 0 property count equals 0 then
+  query "INSERT INTO users (name, email) VALUES ('Alice Johnson', 'alice@example.com')"
+  query "INSERT INTO users (name, email) VALUES ('Bob Smith', 'bob@example.com')"
+  query "INSERT INTO users (name, email) VALUES ('Carol Davis', 'carol@example.com')"
+end
+
+log "Starting HyperianLang Web Application with MariaDB..."
+
+# Serve the main HTML page
+when the server receives a "GET" request to "/" then
+  html page
+    html head
+      html title "HyperianLang Web App (MariaDB)"
+      
+      # Root variables
+      css rule ":root"
+        use background to "#c0765a"
+      end rule
+      
+      # Universal box sizing
+      css rule "*, *::before, *::after"
+        use boxsizing to "border-box"
+      end rule
+      
+      # Body styling
+      css rule "body"
+        use fontfamily to "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+        use background to "linear-gradient(135deg, #c0765a 0%, #8b4513 100%)"
+        use minheight to "100vh"
+        use margin to "0"
+        use padding to "20px"
+      end rule
+      
+      # Container
+      css class "container"
+        use maxwidth to "900px"
+        use margin to "0 auto"
+        use background to "white"
+        use borderradius to "16px"
+        use boxshadow to "0 20px 60px rgba(0,0,0,0.3)"
+        use overflow to "hidden"
+      end rule
+      
+      # Header
+      css rule "h1"
+        use background to "linear-gradient(135deg, #c0765a 0%, #8b4513 100%)"
+        use color to "white"
+        use margin to "0"
+        use padding to "30px"
+        use textalign to "center"
+        use fontsize to "28px"
+      end rule
+      
+      # Navigation
+      css class "nav"
+        use display to "flex"
+        use justifycontent to "center"
+        use gap to "10px"
+        use padding to "15px"
+        use background to "#f8f9fa"
+        use borderBottom to "1px solid #dee2e6"
+      end rule
+      
+      css rule ".nav a"
+        use padding to "10px 20px"
+        use textdecoration to "none"
+        use color to "#c0765a"
+        use borderradius to "8px"
+        use transition to "all 0.3s ease"
+        use fontweight to "500"
+      end rule
+      
+      css rule ".nav a:hover"
+        use background to "#c0765a"
+        use color to "white"
+      end rule
+      
+      # Pages
+      css class "page"
+        use padding to "30px"
+      end rule
+      
+      # Cards
+      css class "card"
+        use background to "#f8f9fa"
+        use borderradius to "12px"
+        use padding to "25px"
+        use marginbottom to "20px"
+      end rule
+      
+      css rule ".card h2"
+        use margin to "0 0 15px 0"
+        use color to "#333"
+      end rule
+      
+      css rule ".user-card"
+        use background to "white"
+        use padding to "15px"
+        use marginbottom to "10px"
+        use borderradius to "8px"
+        use boxshadow to "0 2px 4px rgba(0,0,0,0.1)"
+      end rule
+      
+      # Stats
+      css class "stats"
+        use display to "grid"
+        use gridtemplatecolumns to "repeat(auto-fit, minmax(200px, 1fr))"
+        use gap to "20px"
+      end rule
+      
+      css class "stat"
+        use background to "linear-gradient(135deg, #c0765a 0%, #8b4513 100%)"
+        use color to "white"
+        use padding to "30px"
+        use borderradius to "12px"
+        use textalign to "center"
+      end rule
+      
+      css rule ".stat-num"
+        use fontsize to "36px"
+        use fontweight to "bold"
+      end rule
+      
+      css rule ".stat-label"
+        use opacity to "0.9"
+        use margintop to "5px"
+      end rule
+      
+      # User list
+      css class "user-list"
+        use liststyle to "none"
+        use padding to "0"
+        use margin to "0"
+      end rule
+      
+      css class "user"
+        use display to "flex"
+        use justifycontent to "space-between"
+        use alignitems to "center"
+        use padding to "15px"
+        use background to "white"
+        use borderradius to "8px"
+        use marginbottom to "10px"
+        use boxshadow to "0 2px 4px rgba(0,0,0,0.1)"
+      end rule
+      
+      css class "badge"
+        use background to "#c0765a"
+        use color to "white"
+        use padding to "5px 12px"
+        use borderradius to "20px"
+        use fontsize to "12px"
+      end rule
+      
+      css class "db-badge"
+        use background to "#c0765a"
+        use color to "white"
+        use padding to "3px 10px"
+        use borderradius to "4px"
+        use fontsize to "11px"
+        use marginleft to "10px"
+      end rule
+      
+      # Form styling
+      css rule "input"
+        use width to "100%"
+        use padding to "12px 15px"
+        use marginbottom to "15px"
+        use border to "2px solid #dee2e6"
+        use borderradius to "8px"
+        use fontsize to "14px"
+        use transition to "border-color 0.3s"
+      end rule
+      
+      css rule "input:focus"
+        use outline to "none"
+        use bordercolor to "#c0765a"
+      end rule
+      
+      css rule "button"
+        use width to "100%"
+        use padding to "12px"
+        use background to "linear-gradient(135deg, #c0765a 0%, #8b4513 100%)"
+        use color to "white"
+        use border to "none"
+        use borderradius to "8px"
+        use fontsize to "16px"
+        use fontweight to "600"
+        use cursor to "pointer"
+        use transition to "transform 0.2s, box-shadow 0.2s"
+      end rule
+      
+      css rule "button:hover"
+        use transform to "translateY(-2px)"
+        use boxshadow to "0 4px 12px rgba(192, 118, 90, 0.4)"
+      end rule
+      
+      css class "loading"
+        use opacity to "0.7"
+        use cursor to "not-allowed"
+      end rule
+      
+      css class "success"
+        use display to "none"
+        use background to "#d4edda"
+        use color to "#155724"
+        use padding to "15px"
+        use borderradius to "8px"
+        use margintop to "15px"
+        use textalign to "center"
+      end rule
+      
+    end head
+    html body
+      html div with class "container"
+        html heading "HyperianLang Web App"
+        html span with class "db-badge"
+          html text "MariaDB"
+        end span
+        html nav with class "nav"
+          html link "#home" "Home" with onclick "showPage('home')"
+          html link "#users" "Users" with onclick "showPage('users')"
+          html link "#stats" "Stats" with onclick "showPage('stats')"
+          html link "#add" "Add User" with onclick "showPage('add')"
+        end nav
+        
+        # Home Page
+        html div with id "page-home" and class "page"
+          html div with class "card"
+            html heading 2 "Welcome!"
+            html paragraph "This web application is built with HyperianLang and uses MariaDB for data persistence."
+            html break
+            html paragraph "Features:"
+            html unordered
+              html item "MariaDB database integration"
+              html item "Dynamic HTML rendering"
+              html item "CSS styling"
+              html item "REST API endpoints"
+              html item "Real-time data updates"
+            end unordered
+          end div
+        end div
+        
+        # Users Page
+        html div with id "page-users" and class "page" and style "display:none"
+          html div with class "card"
+            html heading 2 "User Directory"
+            html div with id "users-container"
+              html paragraph "Loading..."
+            end div
+          end div
+        end div
+        
+        # Stats Page
+        html div with id "page-stats" and class "page" and style "display:none"
+          html div with class "stats"
+            html div with class "stat"
+              html div with class "stat-num" and id "user-count"
+                html paragraph "-"
+              end div
+              html div with class "stat-label"
+                html paragraph "Total Users"
+              end div
+            end div
+            html div with class "stat"
+              html div with class "stat-num"
+                html paragraph "MariaDB"
+              end div
+              html div with class "stat-label"
+                html paragraph "Database"
+              end div
+            end div
+            html div with class "stat"
+              html div with class "stat-num"
+                html paragraph "100%"
+              end div
+              html div with class "stat-label"
+                html paragraph "Uptime"
+              end div
+            end div
+          end div
+        end div
+        
+        # Add User Page
+        html div with id "page-add" and class "page" and style "display:none"
+          html div with class "card"
+            html heading 2 "Create New User"
+            html form with id "userForm"
+              html input with type "text" and id "name" and placeholder "Full Name" and required
+              html input with type "email" and id "email" and placeholder "Email Address" and required
+              html button "Add User" with type "submit"
+            end form
+            html div with id "success" and class "success"
+              html paragraph "User saved to MariaDB database!"
+            end div
+          end div
+        end div
+        
+      end div
+      
+      html script block
+        # Show a specific page and hide others
+        define function showPage with page
+          select all ".page" into pages
+          for each p in pages
+            hide p
+          end for
+          set currentPage to "#page-" joined with page
+          select currentPage into pageElement
+          show pageElement
+          save page to storage "lastPage"
+          if page equals "users" then
+            call loadUsers
+          end if
+          if page equals "stats" then
+            call loadStats
+          end if
+        end function
+        
+        # Load and display users from API
+        define async function loadUsers
+          select "#users-container" into container
+          set container html to "Loading from MariaDB..."
+          try
+            fetch "/api/users" into data
+            set htmlContent to ""
+            for each user in data property data
+              set htmlContent to htmlContent joined with "<div class='user-card'><strong>" joined with user property name joined with "</strong><br><small>" joined with user property email joined with "</small></div>"
+            end for
+            set container html to htmlContent
+          catch error
+            set container html to "Error loading users from database."
+          end try
+        end function
+        
+        # Load and display stats
+        define async function loadStats
+          try
+            fetch "/api/users" into response
+            select "#user-count" into countEl
+            set users to response property data
+            set countEl text to users property length
+          catch error
+            log error
+          end try
+        end function
+        
+        # Handle form submission
+        when userForm submitted then
+          prevent default
+          try
+            select "#name" into nameField
+            select "#email" into emailField
+            set userName to nameField property value
+            set userEmail to emailField property value
+            set userData to { name: userName, email: userEmail }
+            fetch "/api/users" with post and body userData into result
+            select "#success" into successMsg
+            show successMsg
+            set nameField value to ""
+            set emailField value to ""
+            remove from storage "formDraft"
+            delay 3000 then
+              hide successMsg
+            end delay
+          catch error
+            alert "Error creating user"
+          end try
+        end when
+        
+        # Save form draft as user types
+        when "#name" input then
+          select "#name" into nameField
+          select "#email" into emailField
+          set draft to { name: nameField property value, email: emailField property value }
+          save draft to storage "formDraft"
+        end when
+        
+        when "#email" input then
+          select "#name" into nameField
+          select "#email" into emailField
+          set draft to { name: nameField property value, email: emailField property value }
+          save draft to storage "formDraft"
+        end when
+        
+        # Initialize on page load
+        when page loaded then
+          set hash to window property location property hash
+          if hash then
+            set page to hash property slice with 1
+            call showPage with page
+            save page to storage "lastPage"
+          else
+            load from storage "lastPage" into savedPage
+            if savedPage then
+              call showPage with savedPage
+            else
+              call showPage with "home"
+            end if
+          end if
+          
+          load from storage "formDraft" into draft
+          if draft then
+            select "#name" into nameField
+            select "#email" into emailField
+            set nameField value to draft property name
+            set emailField value to draft property email
+          end if
+        end when
+      end script
+      
+    end body
+  end page
+end
+
+# API: Get all users from MariaDB
+when the server receives a "GET" request to "/api/users" then
+  query "SELECT * FROM users" into users
+  respond with { success: true, data: users }
+end
+
+# API: Create a new user in MariaDB
+when the server receives a "POST" request to "/api/users" then
+  set userData to get the body from request
+  set userName to get name from userData
+  set userEmail to get email from userData
+  query "INSERT INTO users (name, email) VALUES (?, ?)" with userName, userEmail
+  query "SELECT * FROM users WHERE id = LAST_INSERT_ID()" into newUser
+  respond with { success: true, user: newUser }
+end
+
+# API: Get a single user from MariaDB
+when the server receives a "GET" request to "/api/users/:id" then
+  set parameters to get the parameters from request
+  set userId to get id from parameters
+  query "SELECT * FROM users WHERE id = ?" with userId into foundUser
+  if foundUser property length equals 0 then
+    respond with { success: false, error: "User not found" }
+  otherwise
+    respond with { success: true, user: foundUser property 0 }
+  end
+end
+
+# API: Delete a user from MariaDB
+when the server receives a "DELETE" request to "/api/users/:id" then
+  set parameters to get the parameters from request
+  set userId to get id from parameters
+  query "DELETE FROM users WHERE id = ?" with userId
+  respond with { success: true, message: "User deleted" }
+end
+
+# API: Health check
+when the server receives a "GET" request to "/api/health" then
+  respond with { status: "ok", database: "mariadb", message: "Server is running" }
+end
+
+# Start the server
+start the server on port 3000
