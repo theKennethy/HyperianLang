@@ -664,6 +664,55 @@ query "SELECT * FROM users WHERE id = $1" with userId into results
 query "DELETE FROM users WHERE id = $1" with userId
 ```
 
+## Client-Side Storage (localStorage)
+
+For browser-based apps, HyperianLang supports localStorage:
+
+```hyperianlang
+# Inside html script block
+save userData to storage "user"
+load from storage "user" into userData
+remove from storage "user"
+clear from storage all
+```
+
+## Client-Side Storage (IndexedDB)
+
+For larger client-side data storage, HyperianLang supports IndexedDB with natural English syntax:
+
+```hyperianlang
+# Inside html script block
+
+# Open a database with a store
+open indexeddb "myAppDB" with store "users" and version 1 into db
+
+# Save data to the database
+save { name: "Alice", age: 30 } to indexeddb db with key "user1"
+
+# Load a single record by key
+load from indexeddb db where key equals "user1" into userData
+
+# Load all records
+load all from indexeddb db into allUsers
+
+# Update a record
+update indexeddb db where key equals "user1" and value { name: "Alice", age: 31 }
+
+# Delete a record
+delete from indexeddb db where key equals "user1"
+```
+
+Alternative syntax (also supported):
+
+```hyperianlang
+# Original syntax
+open database "myDB" with store "items" into db
+get from database db with key "item1" into item
+get all from database db into items
+add to database db with key "item2" and value { name: "Widget" }
+delete from database db with key "item2"
+```
+
 ## JSON
 
 ```hyperianlang

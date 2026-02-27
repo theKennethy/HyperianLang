@@ -466,6 +466,14 @@ class HLParser {
   _is(val) { return this._peek()?.value === val; }
   _isType(t) { return this._peek()?.type === t; }
   _isEndTag(tag) { return this._peek()?.value === 'end' && this._peek(1)?.value === tag; }
+  _lookaheadContains(words, maxLook = 5) {
+    for (let i = 0; i < maxLook; i++) {
+      const tok = this._peek(i);
+      if (!tok) break;
+      if (words.includes(tok.value)) return true;
+    }
+    return false;
+  }
 
   _consume(expectedValue) {
     const tok = this._next();
@@ -6912,10 +6920,11 @@ class HLParser {
       this._next();
       
       // IndexedDB: get all from database VAR into VAR (must check before consuming 'all')
-      if (this._is('all') && this._peek(1)?.value === 'from' && (this._peek(2)?.value === 'database' || this._peek(2)?.value === 'db')) {
+      // Also: get all from indexeddb VAR into VAR (alias)
+      if (this._is('all') && this._peek(1)?.value === 'from' && (this._peek(2)?.value === 'database' || this._peek(2)?.value === 'db' || this._peek(2)?.value === 'indexeddb')) {
         this._next(); // all
         this._next(); // from
-        this._next(); // database
+        this._next(); // database/indexeddb
         const dbVar = this._consumeIdent();
         let out = null;
         if (this._is('into') || this._is('as')) {
@@ -6926,14 +6935,16 @@ class HLParser {
       }
       
       // IndexedDB: get from database VAR with key KEY into VAR
-      if (this._is('from') && (this._peek(1)?.value === 'database' || this._peek(1)?.value === 'db')) {
+      // Also: get from indexeddb VAR with key KEY into VAR (alias)
+      if (this._is('from') && (this._peek(1)?.value === 'database' || this._peek(1)?.value === 'db' || this._peek(1)?.value === 'indexeddb')) {
         this._next(); // from
-        this._next(); // database
+        this._next(); // database/indexeddb
         const dbVar = this._consumeIdent();
         let key = null;
-        if (this._is('with') || this._is('key')) {
-          if (this._is('with')) this._next();
-          if (this._is('key')) this._next();
+        if (this._is('with') || this._is('key') || this._is('where')) {
+          if (this._is('with') || this._is('where')) this._next();
+          if (this._is('key') || this._is('id')) this._next();
+          if (this._is('equals') || this._is('is')) this._next();
           key = this._parseClientValue();
         }
         let out = null;
@@ -7115,10 +7126,48 @@ class HLParser {
     }
     
     // localStorage: load from storage KEY into VAR / get from storage KEY into VAR
+    // Also IndexedDB: load from indexeddb/database VAR into VAR
     if (this._is('load') || this._is('get')) {
       const action = this._peek()?.value;
       this._next();
       if (this._is('from')) this._next();
+      
+      // IndexedDB: load all from indexeddb/database VAR into VAR
+      if (this._is('all') && (this._peek(1)?.value === 'from')) {
+        this._next(); // all
+        this._next(); // from
+        if (this._is('indexeddb') || this._is('database') || this._is('db')) {
+          this._next();
+          const dbVar = this._consumeIdent();
+          let out = null;
+          if (this._is('into') || this._is('as')) {
+            this._next();
+            out = this._consumeIdent();
+          }
+          return { type: 'clientDbGetAll', dbVar, out };
+        }
+        this._pos -= 2; // revert
+      }
+      
+      // IndexedDB: load from indexeddb/database VAR where key equals X into VAR
+      if (this._is('indexeddb') || this._is('database') || this._is('db')) {
+        this._next();
+        const dbVar = this._consumeIdent();
+        let key = null;
+        if (this._is('with') || this._is('key') || this._is('where')) {
+          if (this._is('with') || this._is('where')) this._next();
+          if (this._is('key') || this._is('id')) this._next();
+          if (this._is('equals') || this._is('is')) this._next();
+          key = this._parseClientValue();
+        }
+        let out = null;
+        if (this._is('into') || this._is('as')) {
+          this._next();
+          out = this._consumeIdent();
+        }
+        return { type: 'clientDbGet', dbVar, key, out };
+      }
+      
       if (this._is('storage') || this._is('local')) {
         this._next();
         if (this._is('storage')) this._next();
@@ -7140,14 +7189,15 @@ class HLParser {
       this._next();
       if (this._is('from')) this._next();
       
-      // IndexedDB: delete from database VAR with key KEY
-      if (this._is('database') || this._is('db')) {
+      // IndexedDB: delete from database/indexeddb VAR with key KEY
+      if (this._is('database') || this._is('db') || this._is('indexeddb')) {
         this._next();
         const dbVar = this._consumeIdent();
         let key = null;
-        if (this._is('with') || this._is('key')) {
-          if (this._is('with')) this._next();
-          if (this._is('key')) this._next();
+        if (this._is('with') || this._is('key') || this._is('where')) {
+          if (this._is('with') || this._is('where')) this._next();
+          if (this._is('key') || this._is('id')) this._next();
+          if (this._is('equals') || this._is('is')) this._next();
           key = this._parseClientValue();
         }
         return { type: 'clientDbDelete', dbVar, key };
@@ -7167,19 +7217,25 @@ class HLParser {
     }
     
     // IndexedDB: open database NAME with store STORENAME
+    // Also: open indexeddb NAME with store STORENAME (alias)
     if (this._is('open')) {
       this._next();
-      if (this._is('database') || this._is('db') || this._is('indexed')) {
+      if (this._is('database') || this._is('db') || this._is('indexed') || this._is('indexeddb')) {
         this._next();
         if (this._is('database') || this._is('db')) this._next();
         const dbName = this._parseClientValue();
         let storeName = null;
         let version = null;
-        if (this._is('with')) {
-          this._next();
-          if (this._is('store')) { this._next(); storeName = this._parseClientValue(); }
-          if (this._is('and')) this._next();
-          if (this._is('version')) { this._next(); version = this._parseClientValue(); }
+        while (this._peek() && !this._is('into') && !this._is('as') && !this._is('then') && !this._is('end')) {
+          if (this._is('with') || this._is('store') || this._is('using')) {
+            if (this._is('with') || this._is('using')) this._next();
+            if (this._is('store')) { this._next(); storeName = this._parseClientValue(); }
+          }
+          else if (this._is('and') || this._is('version')) {
+            if (this._is('and')) this._next();
+            if (this._is('version')) { this._next(); version = this._parseClientValue(); }
+          }
+          else break;
         }
         let out = null;
         if (this._is('into') || this._is('as')) {
@@ -7191,8 +7247,28 @@ class HLParser {
       this._pos--;
     }
     
-    // IndexedDB: save to database VAR with key KEY and value VALUE
-    if (this._is('add') && this._peek(1)?.value === 'to' && (this._peek(2)?.value === 'database' || this._peek(2)?.value === 'db')) {
+    // IndexedDB: save VALUE to database/indexeddb VAR
+    // Also: save VALUE to indexeddb VAR with key KEY
+    if ((this._is('save') || this._is('store')) && this._lookaheadContains(['database', 'db', 'indexeddb'], 5)) {
+      this._next();
+      const value = this._parseClientValue();
+      if (this._is('to') || this._is('in')) this._next();
+      if (this._is('database') || this._is('db') || this._is('indexeddb')) {
+        this._next();
+        const dbVar = this._consumeIdent();
+        let key = null;
+        if (this._is('with') || this._is('as') || this._is('key')) {
+          if (this._is('with') || this._is('as')) this._next();
+          if (this._is('key') || this._is('id')) this._next();
+          key = this._parseClientValue();
+        }
+        return { type: 'clientDbAdd', dbVar, key, value };
+      }
+      this._pos--;
+    }
+    
+    // IndexedDB: add to database VAR with key KEY and value VALUE (original syntax)
+    if (this._is('add') && this._peek(1)?.value === 'to' && (this._peek(2)?.value === 'database' || this._peek(2)?.value === 'db' || this._peek(2)?.value === 'indexeddb')) {
       this._next(); // add
       this._next(); // to
       this._next(); // database
@@ -7208,17 +7284,17 @@ class HLParser {
       return { type: 'clientDbAdd', dbVar, key, value };
     }
     
-    // IndexedDB: update database VAR with key KEY and value VALUE
-    if (this._is('update') && (this._peek(1)?.value === 'database' || this._peek(1)?.value === 'db')) {
+    // IndexedDB: update database/indexeddb VAR with key KEY and value VALUE
+    if (this._is('update') && (this._peek(1)?.value === 'database' || this._peek(1)?.value === 'db' || this._peek(1)?.value === 'indexeddb')) {
       this._next(); // update
-      this._next(); // database
+      this._next(); // database/indexeddb
       const dbVar = this._consumeIdent();
       let key = null;
       let value = null;
-      if (this._is('with')) {
+      if (this._is('with') || this._is('where')) {
         this._next();
-        if (this._is('key')) { this._next(); key = this._parseClientValue(); }
-        if (this._is('and')) this._next();
+        if (this._is('key') || this._is('id')) { this._next(); if (this._is('equals') || this._is('is')) this._next(); key = this._parseClientValue(); }
+        if (this._is('and') || this._is('to') || this._is('set')) this._next();
         if (this._is('value') || this._is('data')) { this._next(); value = this._parseClientValue(); }
       }
       return { type: 'clientDbUpdate', dbVar, key, value };
